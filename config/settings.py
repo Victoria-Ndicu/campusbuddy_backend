@@ -1,23 +1,18 @@
 """
 CampusBuddy Django Settings
-All environment-specific values are read from .env via python-decouple.
+Supports both local development and production (Railway/any platform).
 """
 from datetime import timedelta
 from pathlib import Path
-
 from decouple import Csv, config
 import dj_database_url
 
-# ── Paths ──────────────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# ── Core ───────────────────────────────────────────────────────────────────────
 SECRET_KEY = config("SECRET_KEY")
 DEBUG = config("DEBUG", default=False, cast=bool)
-ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost", cast=Csv())
-APP_ENV = config("APP_ENV", default="production")
+ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="*", cast=Csv())
 
-# ── Installed Apps ─────────────────────────────────────────────────────────────
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -40,9 +35,9 @@ INSTALLED_APPS = [
     "apps.study",
 ]
 
-# ── Middleware ─────────────────────────────────────────────────────────────────
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -55,7 +50,6 @@ MIDDLEWARE = [
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
 
-# ── Templates ─────────────────────────────────────────────────────────────────
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
@@ -81,32 +75,27 @@ DATABASES = {
     )
 }
 
-# ── Custom User Model ──────────────────────────────────────────────────────────
 AUTH_USER_MODEL = "authentication.User"
 
-# ── Password Validation ────────────────────────────────────────────────────────
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 8}},
-    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
-    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-# ── Internationalisation ───────────────────────────────────────────────────────
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Africa/Nairobi"
 USE_I18N = True
 USE_TZ = True
 
-# ── Static & Media ────────────────────────────────────────────────────────────
+# ── Static files ───────────────────────────────────────────────────────────────
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ── CORS ───────────────────────────────────────────────────────────────────────
-CORS_ALLOWED_ORIGINS = config("CORS_ALLOWED_ORIGINS", default="http://localhost:3000", cast=Csv())
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
 # ── Django REST Framework ──────────────────────────────────────────────────────
@@ -132,13 +121,9 @@ REST_FRAMEWORK = {
 
 # ── Simple JWT ─────────────────────────────────────────────────────────────────
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(
-        minutes=config("JWT_ACCESS_TOKEN_LIFETIME_MINUTES", default=15, cast=int)
-    ),
-    "REFRESH_TOKEN_LIFETIME": timedelta(
-        days=config("JWT_REFRESH_TOKEN_LIFETIME_DAYS", default=30, cast=int)
-    ),
-    "ROTATE_REFRESH_TOKENS": True,
+    "ACCESS_TOKEN_LIFETIME":  timedelta(minutes=config("JWT_ACCESS_TOKEN_LIFETIME_MINUTES", default=15, cast=int)),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=config("JWT_REFRESH_TOKEN_LIFETIME_DAYS", default=30, cast=int)),
+    "ROTATE_REFRESH_TOKENS":  True,
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": True,
     "ALGORITHM": "HS256",
@@ -149,48 +134,24 @@ SIMPLE_JWT = {
     "TOKEN_OBTAIN_SERIALIZER": "apps.authentication.serializers.CustomTokenObtainPairSerializer",
 }
 
-# ── Redis / Cache ──────────────────────────────────────────────────────────────
-REDIS_URL = config("REDIS_URL", default="redis://localhost:6379/0")
-
+# ── Cache — local memory ───────────────────────────────────────────────────────
 CACHES = {
     "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": REDIS_URL,
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            "IGNORE_EXCEPTIONS": True,  # Degrade gracefully if Redis is down
-        },
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
     }
 }
 
-# ── Celery ─────────────────────────────────────────────────────────────────────
-CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="redis://localhost:6379/1")
-CELERY_RESULT_BACKEND = CELERY_BROKER_URL
-CELERY_TIMEZONE = TIME_ZONE
-CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
-CELERY_TASK_SERIALIZER = "json"
-CELERY_RESULT_SERIALIZER = "json"
-
-# ── File Storage (Cloudflare R2 / S3) ─────────────────────────────────────────
-USE_R2_STORAGE = config("R2_ACCOUNT_ID", default="") != ""
-
-if USE_R2_STORAGE:
-    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-    AWS_ACCESS_KEY_ID = config("R2_ACCESS_KEY_ID")
-    AWS_SECRET_ACCESS_KEY = config("R2_SECRET_ACCESS_KEY")
-    AWS_STORAGE_BUCKET_NAME = config("R2_STORAGE_BUCKET_NAME")
-    AWS_S3_ENDPOINT_URL = config("R2_ENDPOINT_URL")
-    AWS_S3_CUSTOM_DOMAIN = config("R2_CUSTOM_DOMAIN", default="")
-    AWS_DEFAULT_ACL = "public-read"
-    AWS_S3_FILE_OVERWRITE = False
-
-# ── Email ──────────────────────────────────────────────────────────────────────
+# ── Email — console in dev, can swap for SendGrid later ───────────────────────
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="ndicuvictoria@gmail.com")
 SENDGRID_API_KEY = config("SENDGRID_API_KEY", default="")
-DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@campusbuddy.app")
 
-# ── Firebase ──────────────────────────────────────────────────────────────────
+# ── Storage — local disk (swap for R2 later) ──────────────────────────────────
+DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
+
+# ── Firebase — disabled until configured ──────────────────────────────────────
 FIREBASE_SERVICE_ACCOUNT_JSON = config("FIREBASE_SERVICE_ACCOUNT_JSON", default="")
 
-# ── OTP Settings ──────────────────────────────────────────────────────────────
+# ── OTP ───────────────────────────────────────────────────────────────────────
 OTP_EXPIRY_MINUTES = config("OTP_EXPIRY_MINUTES", default=10, cast=int)
-MAX_OTP_ATTEMPTS = config("MAX_OTP_ATTEMPTS", default=5, cast=int)
+MAX_OTP_ATTEMPTS  = config("MAX_OTP_ATTEMPTS",   default=5,  cast=int)
