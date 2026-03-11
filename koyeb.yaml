@@ -1,0 +1,19 @@
+name: campusbuddy-backend
+services:
+  - name: web
+    type: web
+    runtime: python
+    build:
+      buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    run:
+      runCommand: python manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2
+    ports:
+      - port: 8000
+        protocol: http
+    env:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: "*"
