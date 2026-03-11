@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: campusbuddy-backend
+    runtime: python
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    startCommand: python manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: "*"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: campusbuddy-db
+          property: connectionString
+
+databases:
+  - name: campusbuddy-db
+    databaseName: campusbuddy
+    user: campusbuddy
