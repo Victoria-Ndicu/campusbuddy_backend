@@ -8,6 +8,7 @@ class AuthenticationConfig(AppConfig):
     verbose_name = "Authentication"
 
     def ready(self):
-        # Initialise Firebase once Django is fully loaded
-        from core.services.notification_service import init_firebase
-        init_firebase()
+        from django.conf import settings
+        if settings.FIREBASE_SERVICE_ACCOUNT_JSON:
+            from core.services.notification_service import init_firebase
+            init_firebase()
