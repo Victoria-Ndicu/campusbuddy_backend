@@ -2,6 +2,7 @@
 Shared push-notification service.
 All apps call send_push_notification() — never directly touch Firebase.
 """
+import json
 import logging
 from typing import Any, Optional
 
@@ -84,8 +85,13 @@ def init_firebase() -> None:
         return
     try:
         from firebase_admin import credentials
-        cred = credentials.Certificate(settings.FIREBASE_SERVICE_ACCOUNT_JSON)
+
+        # FIREBASE_SERVICE_ACCOUNT_JSON is a JSON string in env — parse it to dict
+        service_account_info = json.loads(settings.FIREBASE_SERVICE_ACCOUNT_JSON)
+        cred = credentials.Certificate(service_account_info)
         firebase_admin.initialize_app(cred)
         logger.info("Firebase Admin SDK initialised.")
+    except json.JSONDecodeError as exc:
+        logger.error(f"Firebase init failed — invalid JSON in FIREBASE_SERVICE_ACCOUNT_JSON: {exc}")
     except Exception as exc:
         logger.error(f"Firebase init failed: {exc}")
