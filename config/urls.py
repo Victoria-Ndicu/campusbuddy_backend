@@ -4,7 +4,7 @@ from django.http import JsonResponse
 
 
 def health_check(request):
-    return JsonResponse({"status": "ok", "version": "1.0.0"})
+    return JsonResponse({"status": "ok"}, status=200)    
 
 def root(request):
     return JsonResponse({
