@@ -1,7 +1,3 @@
-"""
-CampusBuddy root URL configuration.
-All API endpoints are versioned under /api/v1/.
-"""
 from django.contrib import admin
 from django.urls import include, path
 from django.http import JsonResponse
@@ -10,8 +6,18 @@ from django.http import JsonResponse
 def health_check(request):
     return JsonResponse({"status": "ok", "version": "1.0.0"})
 
+def root(request):
+    return JsonResponse({
+        "message": "CampusBuddy API is running",
+        "health": "/health/",
+        "api": "/api/v1/"
+    })
+
 
 urlpatterns = [
+    # Root 
+    path("", root),
+
     # Admin
     path("admin/", admin.site.urls),
 
