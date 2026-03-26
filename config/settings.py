@@ -143,10 +143,15 @@ CACHES = {
     }
 }
 
-# ── Email — console in dev, can swap for SendGrid later ───────────────────────
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="ndicuvictoria@gmail.com")
+# ── Email ─────────────────────────────────────────────────────────────────────
 SENDGRID_API_KEY = config("SENDGRID_API_KEY", default="")
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="ndicuvictoria@gmail.com")
+
+if SENDGRID_API_KEY:
+    EMAIL_BACKEND = "sendgrid_backend.SendgridBackend"
+    SENDGRID_SANDBOX_MODE_IN_DEBUG = False
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # ── Storage — local disk (swap for R2 later) ──────────────────────────────────
 DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
