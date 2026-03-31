@@ -9,7 +9,7 @@ from .serializers import (
     CreateBookingSerializer, CreateGroupSerializer, CreateQuestionSerializer,
     CreateResourceSerializer, CreateTutorSerializer, GroupSerializer,
     QuestionSerializer, ResourceSerializer, TutorSerializer,
-    UpdateBookingSerializer,
+    UpdateBookingSerializer, UpdateGroupSerializer,
 )
 
 
@@ -74,6 +74,19 @@ class GroupJoinView(APIView):
 class GroupLeaveView(APIView):
     def post(self, request, pk):
         return Response(services.leave_group(str(pk), request.user))
+
+
+class GroupDetailView(APIView):
+    def get(self, request, pk):
+        return Response(services.get_group(str(pk)))
+
+    def patch(self, request, pk):
+        s = UpdateGroupSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        return Response(services.update_group(str(pk), s.validated_data, request.user))
+
+    def delete(self, request, pk):
+        return Response(services.delete_group(str(pk), request.user))
 
 
 class ResourcesView(APIView):
