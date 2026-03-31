@@ -189,3 +189,38 @@ def accept_answer(question_id: str, answer_id: str, user) -> dict:
     if not updated:
         raise AppError(status.HTTP_404_NOT_FOUND, "NOT_FOUND", "Answer not found.")
     return {"success": True, "message": "Answer accepted."}
+
+
+def get_group(group_id: str) -> dict:
+    group = StudyGroup.objects.filter(pk=group_id).first()
+    if not group:
+        raise AppError(status.HTTP_404_NOT_FOUND, "NOT_FOUND", "Group not found.")
+    members = group.memberships.select_related("user").values(
+        "user__id", "user__first_name", "user__last_name", "joined_at"
+    )
+    data = GroupSerializer(group).data
+    data["members"] = list(members)
+    return {"success": True, "data": data}
+
+
+def update_group(group_id: str, data: dict, user) -> dict:
+    group = StudyGroup.objects.filter(pk=group_id).first()
+    if not group:
+        raise AppError(status.HTTP_404_NOT_FOUND, "NOT_FOUND", "Group not found.")
+    if str(group.creator_id) != str(user.id):
+        raise AppError(status.HTTP_403_FORBIDDEN, "FORBIDDEN", "Only the group creator can update this group.")
+    for key, value in data.items():
+        if value is not None:
+            setattr(group, key, value)
+    group.save()
+    return {"success": True, "data": GroupSerializer(group).data}
+
+
+def delete_group(group_id: str, user) -> dict:
+    group = StudyGroup.objects.filter(pk=group_id).first()
+    if not group:
+        raise AppError(status.HTTP_404_NOT_FOUND, "NOT_FOUND", "Group not found.")
+    if str(group.creator_id) != str(user.id):
+        raise AppError(status.HTTP_403_FORBIDDEN, "FORBIDDEN", "Only the group creator can delete this group.")
+    group.delete()
+    return {"success": True}
