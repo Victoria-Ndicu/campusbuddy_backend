@@ -12,6 +12,7 @@ urlpatterns = [
     path("bookings/<uuid:pk>/",                                views.BookingDetailView.as_view(),  name="booking-detail"),
     # Groups
     path("groups/",                                            views.GroupsView.as_view(),         name="groups"),
+    path("groups/<uuid:pk>/",                                  views.GroupDetailView.as_view(),    name="group-detail"),
     path("groups/<uuid:pk>/join/",                             views.GroupJoinView.as_view(),      name="group-join"),
     path("groups/<uuid:pk>/leave/",                            views.GroupLeaveView.as_view(),     name="group-leave"),
     # Resources

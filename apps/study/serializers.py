@@ -63,6 +63,13 @@ class CreateGroupSerializer(serializers.Serializer):
     campus_id   = serializers.CharField(max_length=80)
 
 
+class UpdateGroupSerializer(serializers.Serializer):
+    name        = serializers.CharField(max_length=150, required=False)
+    description = serializers.CharField(required=False, allow_blank=True)
+    max_members = serializers.IntegerField(required=False)
+    active      = serializers.BooleanField(required=False)
+
+
 class ResourceSerializer(serializers.ModelSerializer):
     uploaderId    = serializers.UUIDField(source="uploader_id", read_only=True)
     resourceType  = serializers.CharField(source="resource_type")
