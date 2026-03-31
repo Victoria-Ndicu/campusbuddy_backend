@@ -17,11 +17,12 @@ def get_profile(user) -> dict:
 
 def update_profile(user, data: dict) -> dict:
     mapping = {
-        "fullName": "full_name",
-        "phone": "phone",
-        "degree": "degree",
+        "fullName":    "full_name",
+        "phone":       "phone",
+        "degree":      "degree",
         "yearOfStudy": "year_of_study",
-        "university": "university",
+        # university intentionally excluded — set at registration from email
+        # domain and cannot be changed
     }
     fields_updated = []
     for key, model_field in mapping.items():
@@ -52,7 +53,6 @@ def change_password(user, current_password: str, new_password: str) -> dict:
         raise AppError(status.HTTP_400_BAD_REQUEST, "INVALID_PASSWORD", "Current password is incorrect.")
     user.set_password(new_password)
     user.save(update_fields=["password"])
-    # Blacklist all refresh tokens (force re-login on other devices)
     from apps.authentication.services import _blacklist_all_tokens
     _blacklist_all_tokens(user)
     return {"success": True, "message": "Password updated successfully."}
@@ -62,7 +62,6 @@ def update_preferences(user, data: dict) -> dict:
     prefs, _ = UserPreferences.objects.get_or_create(user=user)
     if "notifications" in data:
         prefs.notifications = data["notifications"]
-        # Toggle all device tokens
         DeviceToken.objects.filter(user=user).update(active=data["notifications"])
     if "darkMode" in data:
         prefs.dark_mode = data["darkMode"]
@@ -73,8 +72,8 @@ def update_preferences(user, data: dict) -> dict:
         "success": True,
         "preferences": {
             "notifications": prefs.notifications,
-            "darkMode": prefs.dark_mode,
-            "language": prefs.language,
+            "darkMode":      prefs.dark_mode,
+            "language":      prefs.language,
         },
     }
 

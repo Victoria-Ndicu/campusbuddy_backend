@@ -20,7 +20,7 @@ class ProfileSerializer(serializers.Serializer):
     phone         = serializers.CharField(allow_null=True)
     degree        = serializers.CharField(allow_null=True)
     yearOfStudy   = serializers.IntegerField(source="year_of_study", allow_null=True)
-    university    = serializers.CharField(allow_null=True)
+    university    = serializers.CharField(allow_null=True, read_only=True)  # ← locked, set from email domain at registration
     avatarUrl     = serializers.URLField(source="avatar_url", allow_null=True)
     isVerified    = serializers.BooleanField(source="is_verified")
     role          = serializers.CharField()
@@ -40,7 +40,7 @@ class UpdateProfileSerializer(serializers.Serializer):
     phone       = serializers.CharField(max_length=30,  required=False, allow_blank=True)
     degree      = serializers.CharField(max_length=120, required=False, allow_blank=True)
     yearOfStudy = serializers.IntegerField(required=False, allow_null=True, min_value=1, max_value=10)
-    university  = serializers.CharField(max_length=160, required=False, allow_blank=True)
+    # university intentionally excluded — set at registration from email domain, cannot be changed
 
 
 class UpdatePasswordSerializer(serializers.Serializer):

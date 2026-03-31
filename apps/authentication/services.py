@@ -12,7 +12,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from core.exceptions import AppError
 from core.services.email_service import send_otp_email
 
-from .models import OtpCode, User
+from .models import AllowedEmailDomain, OtpCode, User
 
 logger = logging.getLogger("campusbuddy.auth")
 
@@ -22,11 +22,26 @@ def register_user(email: str, password: str, phone: str = "") -> dict:
     if User.objects.filter(email=email).exists():
         raise AppError(status.HTTP_409_CONFLICT, "EMAIL_TAKEN", "An account with this email already exists.")
 
-    user = User.objects.create_user(email=email, password=password, phone=phone or None)
+    # ── Auto-set university from email domain ──────────────────────────────────
+    domain = email.split("@")[-1].lower()
+    university = None
+    try:
+        allowed = AllowedEmailDomain.objects.get(domain=domain, is_active=True)
+        university = allowed.institution_name
+    except AllowedEmailDomain.DoesNotExist:
+        pass  # Non-university email — university stays None
+
+    user = User.objects.create_user(
+        email=email,
+        password=password,
+        phone=phone or None,
+        university=university,   # ← set once at registration, never changed after
+    )
+
     otp_record, plain = OtpCode.generate(user, "email_verify", settings.OTP_EXPIRY_MINUTES)
     send_otp_email(to=email, otp=plain, template="verify")
 
-    logger.info(f"Registered new user: {email}")
+    logger.info(f"Registered new user: {email} | university: {university}")
     return {"message": "Account created. Check your email for the verification code."}
 
 
@@ -72,7 +87,6 @@ def refresh_tokens(refresh_token: str) -> dict:
     """Rotate a refresh token and return a new token pair."""
     try:
         token = RefreshToken(refresh_token)
-        # Blacklist old token (requires rest_framework_simplejwt.token_blacklist)
         token.blacklist()
         user = User.objects.get(pk=token["user_id"], deleted_at__isnull=True)
         return _build_token_response(user)
@@ -109,7 +123,6 @@ def reset_password(email: str, code: str, new_password: str) -> dict:
     user.set_password(new_password)
     user.save(update_fields=["password"])
 
-    # Blacklist all outstanding refresh tokens (force re-login everywhere)
     _blacklist_all_tokens(user)
 
     return {"message": "Password updated successfully."}
