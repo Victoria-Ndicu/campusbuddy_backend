@@ -12,7 +12,7 @@ class Tutor(models.Model):
     rating       = models.DecimalField(max_digits=3, decimal_places=2, default=0.0)
     review_count = models.PositiveIntegerField(default=0)
     available    = models.BooleanField(default=True)
-    campus_id    = models.CharField(max_length=80)
+    campus_id    = models.CharField(max_length=80, default='global', blank=True)  # ← set server-side
     created_at   = models.DateTimeField(auto_now_add=True)
     updated_at   = models.DateTimeField(auto_now=True)
 
@@ -47,7 +47,7 @@ class StudyGroup(models.Model):
     description  = models.TextField(blank=True, null=True)
     max_members  = models.PositiveIntegerField(default=10)
     member_count = models.PositiveIntegerField(default=1)
-    campus_id    = models.CharField(max_length=80)
+    campus_id    = models.CharField(max_length=80, default='global', blank=True)  # ← set server-side from user.university
     active       = models.BooleanField(default=True)
     created_at   = models.DateTimeField(auto_now_add=True)
 
@@ -77,7 +77,7 @@ class StudyResource(models.Model):
     resource_type  = models.CharField(max_length=30, choices=TYPE_CHOICES)
     file_url       = models.URLField(max_length=500)
     download_count = models.PositiveIntegerField(default=0)
-    campus_id      = models.CharField(max_length=80)
+    campus_id      = models.CharField(max_length=80, default='global', blank=True)  # ← set server-side
     created_at     = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -94,7 +94,7 @@ class StudyQuestion(models.Model):
     tags         = models.JSONField(default=list, blank=True)
     answer_count = models.PositiveIntegerField(default=0)
     upvotes      = models.PositiveIntegerField(default=0)
-    campus_id    = models.CharField(max_length=80)
+    campus_id    = models.CharField(max_length=80, default='global', blank=True)  # ← set server-side
     created_at   = models.DateTimeField(auto_now_add=True)
     updated_at   = models.DateTimeField(auto_now=True)
 
