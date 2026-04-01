@@ -61,22 +61,22 @@ class UpdateGroupSerializer(serializers.Serializer):
 
 
 class ResourceSerializer(serializers.ModelSerializer):
-    uploaderId    = serializers.UUIDField(source="uploader_id", read_only=True)
-    resourceType  = serializers.CharField(source="resource_type")
-    fileUrl       = serializers.URLField(source="file_url")
-    downloadCount = serializers.IntegerField(source="download_count", read_only=True)
-    createdAt     = serializers.DateTimeField(source="created_at", read_only=True)
+    """
+    Read-only serializer. Resources are admin-managed — no create/update
+    fields are exposed to the API. The `topic` field gives extra specificity
+    beyond the broad `subject` category.
+    """
+    resourceType   = serializers.CharField(source="resource_type", read_only=True)
+    fileUrl        = serializers.URLField(source="file_url", read_only=True)
+    downloadCount  = serializers.IntegerField(source="download_count", read_only=True)
+    createdAt      = serializers.DateTimeField(source="created_at", read_only=True)
 
     class Meta:
         model  = StudyResource
-        fields = ["id", "uploaderId", "title", "subject", "resourceType", "fileUrl", "downloadCount", "createdAt"]
-
-
-class CreateResourceSerializer(serializers.Serializer):
-    title         = serializers.CharField(max_length=200)
-    subject       = serializers.CharField(max_length=100)
-    resource_type = serializers.ChoiceField(choices=["pdf", "doc", "video", "link", "other"])
-    file_url      = serializers.URLField()
+        fields = [
+            "id", "title", "subject", "topic",
+            "resourceType", "fileUrl", "downloadCount", "createdAt",
+        ]
 
 
 class QuestionSerializer(serializers.ModelSerializer):

@@ -7,9 +7,8 @@ from . import services
 from .serializers import (
     AnswerSerializer, BookingSerializer, CreateAnswerSerializer,
     CreateBookingSerializer, CreateGroupSerializer, CreateQuestionSerializer,
-    CreateResourceSerializer, GroupSerializer, QuestionSerializer,
-    ResourceSerializer, TutorSerializer, UpdateBookingSerializer,
-    UpdateGroupSerializer,
+    GroupSerializer, QuestionSerializer, ResourceSerializer,
+    TutorSerializer, UpdateBookingSerializer, UpdateGroupSerializer,
 )
 
 
@@ -94,17 +93,27 @@ class GroupDetailView(APIView):
 
 
 class ResourcesView(APIView):
+    """
+    Read-only. Resources are curated and uploaded by admins via the Django admin panel.
+    Users can list and filter but cannot upload, edit, or delete resources.
+    """
     def get(self, request):
-        filters = {k: request.query_params.get(k) for k in ["subject", "resource_type"]}
+        filters = {k: request.query_params.get(k) for k in ["subject", "resource_type", "topic"]}
         qs = services.list_resources(filters)
         paginator = StandardPagination()
         page = paginator.paginate_queryset(qs, request)
         return paginator.get_paginated_response(ResourceSerializer(page, many=True).data)
 
-    def post(self, request):
-        s = CreateResourceSerializer(data=request.data)
-        s.is_valid(raise_exception=True)
-        return Response(services.create_resource(s.validated_data, request.user), status=201)
+
+class ResourceDetailView(APIView):
+    def get(self, request, pk):
+        return Response(services.get_resource(pk))
+
+
+class ResourceDownloadView(APIView):
+    """Increments download_count and returns the resource. Called when a user opens a resource."""
+    def post(self, request, pk):
+        return Response(services.record_download(pk))
 
 
 class QuestionsView(APIView):

@@ -66,20 +66,33 @@ class StudyGroupMember(models.Model):
 
 
 class StudyResource(models.Model):
-    TYPE_CHOICES = [("pdf","PDF"),("doc","Doc"),("video","Video"),("link","Link"),("other","Other")]
+    """
+    Admin-managed only. Created and curated via the Django admin panel.
+    Users can only list and view resources — no upload or edit access.
+    """
+    TYPE_CHOICES = [
+        ("pdf",   "PDF"),
+        ("doc",   "Doc"),
+        ("video", "Video"),
+        ("link",  "Link"),
+        ("other", "Other"),
+    ]
 
-    id             = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    uploader       = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="uploaded_resources")
-    title          = models.CharField(max_length=200)
-    subject        = models.CharField(max_length=100)
-    resource_type  = models.CharField(max_length=30, choices=TYPE_CHOICES)
-    file_url       = models.URLField(max_length=500)
+    # Auto-increment integer PK — no UUID needed for admin-managed content
+    title         = models.CharField(max_length=200)
+    subject       = models.CharField(max_length=100)
+    topic         = models.CharField(max_length=150, blank=True, help_text="More specific topic within the subject")
+    resource_type = models.CharField(max_length=30, choices=TYPE_CHOICES)
+    file_url      = models.URLField(max_length=500)
     download_count = models.PositiveIntegerField(default=0)
-    created_at     = models.DateTimeField(auto_now_add=True)
+    created_at    = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "study_resources"
         ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.title} [{self.subject}]"
 
 
 class StudyQuestion(models.Model):
