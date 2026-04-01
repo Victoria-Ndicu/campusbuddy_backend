@@ -15,8 +15,8 @@ class TutorSerializer(serializers.ModelSerializer):
 class CreateTutorSerializer(serializers.Serializer):
     subjects    = serializers.ListField(child=serializers.CharField())
     hourly_rate = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
-    bio         = serializers.CharField(required=False)
-    campus_id   = serializers.CharField(max_length=80)
+    bio         = serializers.CharField(required=False, allow_blank=True)
+    # campus_id removed — injected server-side from request.user.university
 
 
 class BookingSerializer(serializers.ModelSerializer):
@@ -58,9 +58,9 @@ class GroupSerializer(serializers.ModelSerializer):
 class CreateGroupSerializer(serializers.Serializer):
     name        = serializers.CharField(max_length=150)
     subject     = serializers.CharField(max_length=100)
-    description = serializers.CharField(required=False)
+    description = serializers.CharField(required=False, allow_blank=True)
     max_members = serializers.IntegerField(default=10)
-    campus_id   = serializers.CharField(max_length=80)
+    # campus_id removed — injected server-side from request.user.university
 
 
 class UpdateGroupSerializer(serializers.Serializer):
@@ -88,7 +88,7 @@ class CreateResourceSerializer(serializers.Serializer):
     subject       = serializers.CharField(max_length=100)
     resource_type = serializers.ChoiceField(choices=["pdf", "doc", "video", "link", "other"])
     file_url      = serializers.URLField()
-    campus_id     = serializers.CharField(max_length=80)
+    # campus_id removed — injected server-side from request.user.university
 
 
 class QuestionSerializer(serializers.ModelSerializer):
@@ -105,9 +105,9 @@ class QuestionSerializer(serializers.ModelSerializer):
 class CreateQuestionSerializer(serializers.Serializer):
     title     = serializers.CharField(max_length=300)
     body      = serializers.CharField()
-    subject   = serializers.CharField(required=False)
+    subject   = serializers.CharField(required=False, allow_blank=True)
     tags      = serializers.ListField(child=serializers.CharField(), default=list)
-    campus_id = serializers.CharField(max_length=80)
+    # campus_id removed — injected server-side from request.user.university
 
 
 class AnswerSerializer(serializers.ModelSerializer):

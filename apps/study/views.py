@@ -29,7 +29,9 @@ class TutorsView(APIView):
     def post(self, request):
         s = CreateTutorSerializer(data=request.data)
         s.is_valid(raise_exception=True)
-        return Response(services.upsert_tutor(s.validated_data, request.user))
+        data = s.validated_data
+        data['campus_id'] = request.user.university or 'global'  # ← injected
+        return Response(services.upsert_tutor(data, request.user))
 
 
 class BookingsView(APIView):
@@ -63,7 +65,9 @@ class GroupsView(APIView):
     def post(self, request):
         s = CreateGroupSerializer(data=request.data)
         s.is_valid(raise_exception=True)
-        return Response(services.create_group(s.validated_data, request.user), status=201)
+        data = s.validated_data
+        data['campus_id'] = request.user.university or 'global'  # ← injected
+        return Response(services.create_group(data, request.user), status=201)
 
 
 class GroupJoinView(APIView):
@@ -100,7 +104,9 @@ class ResourcesView(APIView):
     def post(self, request):
         s = CreateResourceSerializer(data=request.data)
         s.is_valid(raise_exception=True)
-        return Response(services.create_resource(s.validated_data, request.user), status=201)
+        data = s.validated_data
+        data['campus_id'] = request.user.university or 'global'  # ← injected
+        return Response(services.create_resource(data, request.user), status=201)
 
 
 class QuestionsView(APIView):
@@ -114,7 +120,9 @@ class QuestionsView(APIView):
     def post(self, request):
         s = CreateQuestionSerializer(data=request.data)
         s.is_valid(raise_exception=True)
-        return Response(services.create_question(s.validated_data, request.user), status=201)
+        data = s.validated_data
+        data['campus_id'] = request.user.university or 'global'  # ← injected
+        return Response(services.create_question(data, request.user), status=201)
 
 
 class QuestionDetailView(APIView):
