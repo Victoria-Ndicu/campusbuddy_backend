@@ -5,18 +5,10 @@ from .models import StudyAnswer, StudyBooking, StudyGroup, StudyQuestion, StudyR
 class TutorSerializer(serializers.ModelSerializer):
     userId     = serializers.UUIDField(source="user_id", read_only=True)
     hourlyRate = serializers.DecimalField(source="hourly_rate", max_digits=10, decimal_places=2, allow_null=True)
-    campusId   = serializers.CharField(source="campus_id")
 
     class Meta:
         model  = Tutor
-        fields = ["id", "userId", "subjects", "hourlyRate", "bio", "rating", "review_count", "available", "campusId"]
-
-
-class CreateTutorSerializer(serializers.Serializer):
-    subjects    = serializers.ListField(child=serializers.CharField())
-    hourly_rate = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
-    bio         = serializers.CharField(required=False, allow_blank=True)
-    # campus_id removed — injected server-side from request.user.university
+        fields = ["id", "userId", "subjects", "hourlyRate", "bio", "rating", "review_count", "available"]
 
 
 class BookingSerializer(serializers.ModelSerializer):
@@ -47,12 +39,11 @@ class GroupSerializer(serializers.ModelSerializer):
     creatorId   = serializers.UUIDField(source="creator_id", read_only=True)
     maxMembers  = serializers.IntegerField(source="max_members")
     memberCount = serializers.IntegerField(source="member_count", read_only=True)
-    campusId    = serializers.CharField(source="campus_id")
     createdAt   = serializers.DateTimeField(source="created_at", read_only=True)
 
     class Meta:
         model  = StudyGroup
-        fields = ["id", "creatorId", "name", "subject", "description", "maxMembers", "memberCount", "campusId", "active", "createdAt"]
+        fields = ["id", "creatorId", "name", "subject", "description", "maxMembers", "memberCount", "active", "createdAt"]
 
 
 class CreateGroupSerializer(serializers.Serializer):
@@ -60,7 +51,6 @@ class CreateGroupSerializer(serializers.Serializer):
     subject     = serializers.CharField(max_length=100)
     description = serializers.CharField(required=False, allow_blank=True)
     max_members = serializers.IntegerField(default=10)
-    # campus_id removed — injected server-side from request.user.university
 
 
 class UpdateGroupSerializer(serializers.Serializer):
@@ -75,12 +65,11 @@ class ResourceSerializer(serializers.ModelSerializer):
     resourceType  = serializers.CharField(source="resource_type")
     fileUrl       = serializers.URLField(source="file_url")
     downloadCount = serializers.IntegerField(source="download_count", read_only=True)
-    campusId      = serializers.CharField(source="campus_id")
     createdAt     = serializers.DateTimeField(source="created_at", read_only=True)
 
     class Meta:
         model  = StudyResource
-        fields = ["id", "uploaderId", "title", "subject", "resourceType", "fileUrl", "downloadCount", "campusId", "createdAt"]
+        fields = ["id", "uploaderId", "title", "subject", "resourceType", "fileUrl", "downloadCount", "createdAt"]
 
 
 class CreateResourceSerializer(serializers.Serializer):
@@ -88,26 +77,23 @@ class CreateResourceSerializer(serializers.Serializer):
     subject       = serializers.CharField(max_length=100)
     resource_type = serializers.ChoiceField(choices=["pdf", "doc", "video", "link", "other"])
     file_url      = serializers.URLField()
-    # campus_id removed — injected server-side from request.user.university
 
 
 class QuestionSerializer(serializers.ModelSerializer):
     authorId    = serializers.UUIDField(source="author_id", read_only=True)
     answerCount = serializers.IntegerField(source="answer_count", read_only=True)
-    campusId    = serializers.CharField(source="campus_id")
     createdAt   = serializers.DateTimeField(source="created_at", read_only=True)
 
     class Meta:
         model  = StudyQuestion
-        fields = ["id", "authorId", "title", "body", "subject", "tags", "answerCount", "upvotes", "campusId", "createdAt"]
+        fields = ["id", "authorId", "title", "body", "subject", "tags", "answerCount", "upvotes", "createdAt"]
 
 
 class CreateQuestionSerializer(serializers.Serializer):
-    title     = serializers.CharField(max_length=300)
-    body      = serializers.CharField()
-    subject   = serializers.CharField(required=False, allow_blank=True)
-    tags      = serializers.ListField(child=serializers.CharField(), default=list)
-    # campus_id removed — injected server-side from request.user.university
+    title   = serializers.CharField(max_length=300)
+    body    = serializers.CharField()
+    subject = serializers.CharField(required=False, allow_blank=True)
+    tags    = serializers.ListField(child=serializers.CharField(), default=list)
 
 
 class AnswerSerializer(serializers.ModelSerializer):

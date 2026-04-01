@@ -7,9 +7,9 @@ from . import services
 from .serializers import (
     AnswerSerializer, BookingSerializer, CreateAnswerSerializer,
     CreateBookingSerializer, CreateGroupSerializer, CreateQuestionSerializer,
-    CreateResourceSerializer, CreateTutorSerializer, GroupSerializer,
-    QuestionSerializer, ResourceSerializer, TutorSerializer,
-    UpdateBookingSerializer, UpdateGroupSerializer,
+    CreateResourceSerializer, GroupSerializer, QuestionSerializer,
+    ResourceSerializer, TutorSerializer, UpdateBookingSerializer,
+    UpdateGroupSerializer,
 )
 
 
@@ -19,19 +19,21 @@ class DashboardView(APIView):
 
 
 class TutorsView(APIView):
+    """
+    Read-only. Tutors are created and managed by admins via the Django admin panel.
+    Students can only list and view tutors.
+    """
     def get(self, request):
-        filters = {k: request.query_params.get(k) for k in ["campus_id", "subject", "search"]}
+        filters = {k: request.query_params.get(k) for k in ["subject", "search"]}
         qs = services.list_tutors(filters)
         paginator = StandardPagination()
         page = paginator.paginate_queryset(qs, request)
         return paginator.get_paginated_response(TutorSerializer(page, many=True).data)
 
-    def post(self, request):
-        s = CreateTutorSerializer(data=request.data)
-        s.is_valid(raise_exception=True)
-        data = s.validated_data
-        data['campus_id'] = request.user.university or 'global'  # ← injected
-        return Response(services.upsert_tutor(data, request.user))
+
+class TutorDetailView(APIView):
+    def get(self, request, pk):
+        return Response(services.get_tutor(str(pk)))
 
 
 class BookingsView(APIView):
@@ -56,7 +58,7 @@ class BookingDetailView(APIView):
 
 class GroupsView(APIView):
     def get(self, request):
-        filters = {k: request.query_params.get(k) for k in ["campus_id", "subject"]}
+        filters = {k: request.query_params.get(k) for k in ["subject"]}
         qs = services.list_groups(filters)
         paginator = StandardPagination()
         page = paginator.paginate_queryset(qs, request)
@@ -65,9 +67,7 @@ class GroupsView(APIView):
     def post(self, request):
         s = CreateGroupSerializer(data=request.data)
         s.is_valid(raise_exception=True)
-        data = s.validated_data
-        data['campus_id'] = request.user.university or 'global'  # ← injected
-        return Response(services.create_group(data, request.user), status=201)
+        return Response(services.create_group(s.validated_data, request.user), status=201)
 
 
 class GroupJoinView(APIView):
@@ -95,7 +95,7 @@ class GroupDetailView(APIView):
 
 class ResourcesView(APIView):
     def get(self, request):
-        filters = {k: request.query_params.get(k) for k in ["campus_id", "subject", "resource_type"]}
+        filters = {k: request.query_params.get(k) for k in ["subject", "resource_type"]}
         qs = services.list_resources(filters)
         paginator = StandardPagination()
         page = paginator.paginate_queryset(qs, request)
@@ -104,14 +104,12 @@ class ResourcesView(APIView):
     def post(self, request):
         s = CreateResourceSerializer(data=request.data)
         s.is_valid(raise_exception=True)
-        data = s.validated_data
-        data['campus_id'] = request.user.university or 'global'  # ← injected
-        return Response(services.create_resource(data, request.user), status=201)
+        return Response(services.create_resource(s.validated_data, request.user), status=201)
 
 
 class QuestionsView(APIView):
     def get(self, request):
-        filters = {k: request.query_params.get(k) for k in ["campus_id", "subject", "search"]}
+        filters = {k: request.query_params.get(k) for k in ["subject", "search"]}
         qs = services.list_questions(filters)
         paginator = StandardPagination()
         page = paginator.paginate_queryset(qs, request)
@@ -120,9 +118,7 @@ class QuestionsView(APIView):
     def post(self, request):
         s = CreateQuestionSerializer(data=request.data)
         s.is_valid(raise_exception=True)
-        data = s.validated_data
-        data['campus_id'] = request.user.university or 'global'  # ← injected
-        return Response(services.create_question(data, request.user), status=201)
+        return Response(services.create_question(s.validated_data, request.user), status=201)
 
 
 class QuestionDetailView(APIView):
