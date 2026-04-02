@@ -121,24 +121,12 @@ def list_groups(filters: dict):
 
 
 def create_group(data: dict, user) -> dict:
-    # Remove anything the client might try to spoof
-    data.pop("campus", None)
 
     # Extract active safely
     active = data.pop("active", True)
 
-    # 🔑 Get campus from user
-    campus = getattr(user, "campus", None)
-    if not campus:
-        raise AppError(
-            status.HTTP_400_BAD_REQUEST,
-            "NO_CAMPUS",
-            "User is not associated with any campus."
-        )
-
     group = StudyGroup.objects.create(
         creator=user,
-        campus=campus,
         active=active,
         **data
     )
