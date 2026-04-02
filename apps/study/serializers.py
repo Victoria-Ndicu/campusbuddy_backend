@@ -53,7 +53,7 @@ class GroupMemberSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = StudyGroupMember
-        fields = ["id", "group_id", "user_id", "full_name", "degree", "is_online", "is_admin", "joined_at"]
+        fields = ["id", "group_id", "user_id", "full_name", "degree", "is_online", "is_creator", "joined_at"]
 
     def get_full_name(self, obj):
         u = obj.user
