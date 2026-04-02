@@ -384,4 +384,4 @@ def accept_answer(question_id: str, answer_id: str, user) -> dict:
     updated = StudyAnswer.objects.filter(pk=answer_id, question=q).update(is_accepted=True)
     if not updated:
         raise AppError(status.HTTP_404_NOT_FOUND, "NOT_FOUND", "Answer not found.")
-    return {"success": True, "message": "Answer accepted."} this is my services lets go with taking it fro the backendninstaed of asking the user
+    return {"success": True, "message": "Answer accepted."} 
