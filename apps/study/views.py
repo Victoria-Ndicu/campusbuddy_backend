@@ -5,9 +5,13 @@ from core.pagination import StandardPagination
 
 from . import services
 from .serializers import (
-    AnswerSerializer, BookingSerializer, CreateAnswerSerializer,
-    CreateBookingSerializer, CreateGroupSerializer, CreateQuestionSerializer,
-    GroupSerializer, QuestionSerializer, ResourceSerializer,
+    AnswerSerializer, BookingSerializer,
+    CreateAnswerSerializer, CreateBookingSerializer,
+    CreateGroupSerializer, CreateMessageSerializer,
+    CreateQuestionSerializer, CreateSessionSerializer,
+    GroupMemberSerializer, GroupMessageSerializer,
+    GroupSerializer, GroupSessionSerializer,
+    QuestionSerializer, ResourceSerializer,
     TutorSerializer, UpdateBookingSerializer, UpdateGroupSerializer,
 )
 
@@ -18,10 +22,6 @@ class DashboardView(APIView):
 
 
 class TutorsView(APIView):
-    """
-    Read-only. Tutors are created and managed by admins via the Django admin panel.
-    Students can only list and view tutors.
-    """
     def get(self, request):
         filters = {k: request.query_params.get(k) for k in ["subject", "search"]}
         qs = services.list_tutors(filters)
@@ -55,6 +55,8 @@ class BookingDetailView(APIView):
         return Response(services.update_booking(str(pk), s.validated_data["status"], request.user))
 
 
+# ── Groups ────────────────────────────────────────────────────
+
 class GroupsView(APIView):
     def get(self, request):
         filters = {k: request.query_params.get(k) for k in ["subject"]}
@@ -67,16 +69,6 @@ class GroupsView(APIView):
         s = CreateGroupSerializer(data=request.data)
         s.is_valid(raise_exception=True)
         return Response(services.create_group(s.validated_data, request.user), status=201)
-
-
-class GroupJoinView(APIView):
-    def post(self, request, pk):
-        return Response(services.join_group(str(pk), request.user))
-
-
-class GroupLeaveView(APIView):
-    def post(self, request, pk):
-        return Response(services.leave_group(str(pk), request.user))
 
 
 class GroupDetailView(APIView):
@@ -92,11 +84,85 @@ class GroupDetailView(APIView):
         return Response(services.delete_group(str(pk), request.user))
 
 
+class GroupJoinView(APIView):
+    def post(self, request, pk):
+        return Response(services.join_group(str(pk), request.user))
+
+
+class GroupLeaveView(APIView):
+    def post(self, request, pk):
+        return Response(services.leave_group(str(pk), request.user))
+
+
+class GroupMembersView(APIView):
+    """
+    GET /api/v1/study-buddy/group-members/
+    Query params:
+      ?user=<uuid>      → memberships for a specific user (used by Flutter to
+                          populate _joinedGroupIds on the browse screen)
+      ?group=<uuid>     → members of a specific group
+      ?group_id=<uuid>  → alias for ?group=
+    Returns a paginated list of GroupMemberSerializer rows.
+    This is the missing endpoint that caused joined-state to always reset.
+    """
+    def get(self, request):
+        filters = {k: request.query_params.get(k)
+                   for k in ["user", "group", "group_id"]}
+        qs = services.list_group_members(filters)
+        paginator = StandardPagination()
+        page = paginator.paginate_queryset(qs, request)
+        return paginator.get_paginated_response(GroupMemberSerializer(page, many=True).data)
+
+
+# ── Sessions ──────────────────────────────────────────────────
+
+class GroupSessionsView(APIView):
+    """
+    GET  /api/v1/study-buddy/groups/<pk>/sessions/  → list upcoming sessions
+    POST /api/v1/study-buddy/groups/<pk>/sessions/  → propose a new session
+    """
+    def get(self, request, pk):
+        return Response(services.list_sessions(str(pk)))
+
+    def post(self, request, pk):
+        s = CreateSessionSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        return Response(services.create_session(str(pk), s.validated_data, request.user), status=201)
+
+
+class GroupSessionDetailView(APIView):
+    """
+    DELETE /api/v1/study-buddy/groups/<pk>/sessions/<session_pk>/
+    Proposer or group creator can delete a session.
+    """
+    def delete(self, request, pk, session_pk):
+        return Response(services.delete_session(str(pk), str(session_pk), request.user))
+
+
+# ── Messages ──────────────────────────────────────────────────
+
+class GroupMessagesView(APIView):
+    """
+    GET  /api/v1/study-buddy/groups/<pk>/messages/
+         Optional ?since_id=<uuid> for polling — returns only messages newer
+         than the given message id. Flutter polls every 5 s while screen is open.
+    POST /api/v1/study-buddy/groups/<pk>/messages/
+         Body: { "body": "..." }
+         Only group members can post.
+    """
+    def get(self, request, pk):
+        since_id = request.query_params.get("since_id")
+        return Response(services.list_messages(str(pk), since_id=since_id))
+
+    def post(self, request, pk):
+        s = CreateMessageSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        return Response(services.post_message(str(pk), s.validated_data["body"], request.user), status=201)
+
+
+# ── Resources ─────────────────────────────────────────────────
+
 class ResourcesView(APIView):
-    """
-    Read-only. Resources are curated and uploaded by admins via the Django admin panel.
-    Users can list and filter but cannot upload, edit, or delete resources.
-    """
     def get(self, request):
         filters = {k: request.query_params.get(k) for k in ["subject", "resource_type", "topic"]}
         qs = services.list_resources(filters)
@@ -111,10 +177,11 @@ class ResourceDetailView(APIView):
 
 
 class ResourceDownloadView(APIView):
-    """Increments download_count and returns the resource. Called when a user opens a resource."""
     def post(self, request, pk):
         return Response(services.record_download(pk))
 
+
+# ── Questions & Answers ───────────────────────────────────────
 
 class QuestionsView(APIView):
     def get(self, request):

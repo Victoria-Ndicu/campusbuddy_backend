@@ -53,16 +53,59 @@ class StudyGroup(models.Model):
         db_table = "study_groups"
         ordering = ["-created_at"]
 
+    @property
+    def real_member_count(self):
+        """Always reflects actual DB rows — avoids drift in the cached counter."""
+        return self.memberships.count()
+
 
 class StudyGroupMember(models.Model):
     id        = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     group     = models.ForeignKey(StudyGroup, on_delete=models.CASCADE, related_name="memberships")
     user      = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="study_groups_joined")
+    is_admin  = models.BooleanField(default=False)
     joined_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table        = "study_group_members"
         unique_together = [["group", "user"]]
+
+
+class StudyGroupSession(models.Model):
+    """
+    A study session proposed by any group member.
+    Expired sessions (scheduled_at < now) are excluded by the API automatically.
+    """
+    id           = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    group        = models.ForeignKey(StudyGroup, on_delete=models.CASCADE, related_name="sessions")
+    proposed_by  = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="proposed_sessions")
+    title        = models.CharField(max_length=200)
+    description  = models.TextField(blank=True, null=True)
+    location     = models.CharField(max_length=200, blank=True, null=True,
+                                    help_text="Physical location or online link")
+    scheduled_at = models.DateTimeField()
+    duration_min = models.PositiveIntegerField(default=60)
+    created_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "study_group_sessions"
+        ordering = ["scheduled_at"]   # soonest first
+
+
+class StudyGroupMessage(models.Model):
+    """
+    Group discussion messages. All members of a group can post and read.
+    Persisted forever (no TTL) — frontend polls for new messages.
+    """
+    id         = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    group      = models.ForeignKey(StudyGroup, on_delete=models.CASCADE, related_name="messages")
+    author     = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="group_messages")
+    body       = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "study_group_messages"
+        ordering = ["created_at"]   # oldest first so chat reads top-to-bottom
 
 
 class StudyResource(models.Model):
@@ -78,7 +121,6 @@ class StudyResource(models.Model):
         ("other", "Other"),
     ]
 
-    # Auto-increment integer PK — no UUID needed for admin-managed content
     title         = models.CharField(max_length=200)
     subject       = models.CharField(max_length=100)
     topic         = models.CharField(max_length=150, blank=True, help_text="More specific topic within the subject")

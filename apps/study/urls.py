@@ -15,6 +15,8 @@ urlpatterns = [
     path("groups/<uuid:pk>/",                                  views.GroupDetailView.as_view(),    name="group-detail"),
     path("groups/<uuid:pk>/join/",                             views.GroupJoinView.as_view(),      name="group-join"),
     path("groups/<uuid:pk>/leave/",                            views.GroupLeaveView.as_view(),     name="group-leave"),
+    path("group-members/",                                      views.GroupMembersView.as_view()),
+ 
     # Resources
     path("resources/",                                         views.ResourcesView.as_view(),      name="resources"),
     # Q&A
