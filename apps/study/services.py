@@ -125,8 +125,8 @@ def create_group(data: dict, user) -> dict:
     # passing to model so we can set it explicitly.
     active = data.pop("active", True)
     group = StudyGroup.objects.create(creator=user, active=active, **data)
-    # Creator automatically becomes an admin member
-    StudyGroupMember.objects.create(group=group, user=user, is_admin=True)
+    # Creator automatically becomes an creator member
+    StudyGroupMember.objects.create(group=group, user=user, is_group_creator=True)
     # Sync real count
     StudyGroup.objects.filter(pk=group.pk).update(member_count=1)
     return {"success": True, "data": GroupSerializer(group).data}
