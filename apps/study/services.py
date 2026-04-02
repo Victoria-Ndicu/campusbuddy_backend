@@ -121,14 +121,34 @@ def list_groups(filters: dict):
 
 
 def create_group(data: dict, user) -> dict:
-    # active is included in CreateGroupSerializer now; pop it before
-    # passing to model so we can set it explicitly.
+    # Remove anything the client might try to spoof
+    data.pop("campus", None)
+
+    # Extract active safely
     active = data.pop("active", True)
-    group = StudyGroup.objects.create(creator=user, active=active, **data)
-    # Creator automatically becomes an admin member
+
+    # 🔑 Get campus from user
+    campus = getattr(user, "campus", None)
+    if not campus:
+        raise AppError(
+            status.HTTP_400_BAD_REQUEST,
+            "NO_CAMPUS",
+            "User is not associated with any campus."
+        )
+
+    group = StudyGroup.objects.create(
+        creator=user,
+        campus=campus,
+        active=active,
+        **data
+    )
+
+    # Creator becomes admin
     StudyGroupMember.objects.create(group=group, user=user, is_admin=True)
-    # Sync real count
+
+    # Sync count
     StudyGroup.objects.filter(pk=group.pk).update(member_count=1)
+
     return {"success": True, "data": GroupSerializer(group).data}
 
 
