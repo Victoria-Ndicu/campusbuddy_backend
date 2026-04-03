@@ -121,11 +121,9 @@ def list_groups(filters: dict):
 
 
 def create_group(data: dict, user) -> dict:
-    # active is included in CreateGroupSerializer now; pop it before
-    # passing to model so we can set it explicitly.
     active = data.pop("active", True)
     group = StudyGroup.objects.create(creator=user, active=active, **data)
-    # Creator automatically becomes an admin member
+    # Creator automatically becomes a member flagged as creator
     StudyGroupMember.objects.create(group=group, user=user, is_creator=True)
     # Sync real count
     StudyGroup.objects.filter(pk=group.pk).update(member_count=1)
@@ -144,8 +142,8 @@ def join_group(group_id: str, user) -> dict:
         raise AppError(status.HTTP_409_CONFLICT, "ALREADY_MEMBER",
                        "You are already in this group.")
 
-    StudyGroupMember.objects.create(group=group, user=user)
-    # Always sync counter from real row count to prevent drift
+    # is_creator defaults to False for regular members
+    StudyGroupMember.objects.create(group=group, user=user, is_creator=False)
     StudyGroup.objects.filter(pk=group_id).update(member_count=real_count + 1)
     return {"success": True, "message": "Joined group."}
 
@@ -172,10 +170,6 @@ def get_group(group_id: str) -> dict:
 
 
 def list_group_members(filters: dict):
-    """
-    Powers GET /group-members/?user=<id> and GET /group-members/?group=<id>.
-    This is the endpoint Flutter calls to resolve joined-group sets.
-    """
     qs = StudyGroupMember.objects.select_related("user", "group").all()
     if filters.get("user"):
         qs = qs.filter(user_id=filters["user"])
@@ -206,6 +200,10 @@ def delete_group(group_id: str, user) -> dict:
     if str(group.creator_id) != str(user.id):
         raise AppError(status.HTTP_403_FORBIDDEN, "FORBIDDEN",
                        "Only the group creator can delete this group.")
+    # Explicitly delete related rows first to avoid any cascade issues
+    StudyGroupMember.objects.filter(group=group).delete()
+    StudyGroupMessage.objects.filter(group=group).delete()
+    StudyGroupSession.objects.filter(group=group).delete()
     group.delete()
     return {"success": True}
 
@@ -213,7 +211,6 @@ def delete_group(group_id: str, user) -> dict:
 # ── Sessions ──────────────────────────────────────────────────
 
 def list_sessions(group_id: str) -> dict:
-    """Returns only future/current sessions — expired ones are excluded."""
     group = StudyGroup.objects.filter(pk=group_id, active=True).first()
     if not group:
         raise AppError(status.HTTP_404_NOT_FOUND, "NOT_FOUND", "Group not found.")
@@ -227,7 +224,6 @@ def create_session(group_id: str, data: dict, user) -> dict:
     if not group:
         raise AppError(status.HTTP_404_NOT_FOUND, "NOT_FOUND", "Group not found.")
 
-    # Only group members can propose sessions
     if not StudyGroupMember.objects.filter(group=group, user=user).exists():
         raise AppError(status.HTTP_403_FORBIDDEN, "NOT_MEMBER",
                        "You must be a group member to propose sessions.")
@@ -248,7 +244,6 @@ def delete_session(group_id: str, session_id: str, user) -> dict:
     session = StudyGroupSession.objects.filter(pk=session_id, group_id=group_id).first()
     if not session:
         raise AppError(status.HTTP_404_NOT_FOUND, "NOT_FOUND", "Session not found.")
-    # Proposer OR group creator can delete
     group = session.group
     if str(session.proposed_by_id) != str(user.id) and str(group.creator_id) != str(user.id):
         raise AppError(status.HTTP_403_FORBIDDEN, "FORBIDDEN",
@@ -260,11 +255,6 @@ def delete_session(group_id: str, session_id: str, user) -> dict:
 # ── Messages ──────────────────────────────────────────────────
 
 def list_messages(group_id: str, since_id: str | None = None) -> dict:
-    """
-    Returns group discussion messages.
-    Optional `since_id` (UUID) lets the client poll for only new messages:
-    pass the id of the last message you have, and the API returns everything after it.
-    """
     group = StudyGroup.objects.filter(pk=group_id, active=True).first()
     if not group:
         raise AppError(status.HTTP_404_NOT_FOUND, "NOT_FOUND", "Group not found.")
@@ -275,7 +265,7 @@ def list_messages(group_id: str, since_id: str | None = None) -> dict:
             pivot = StudyGroupMessage.objects.get(pk=since_id, group=group)
             qs = qs.filter(created_at__gt=pivot.created_at)
         except StudyGroupMessage.DoesNotExist:
-            pass   # invalid since_id — just return all messages
+            pass
 
     return {"success": True, "data": GroupMessageSerializer(qs, many=True).data}
 
@@ -285,7 +275,6 @@ def post_message(group_id: str, body: str, user) -> dict:
     if not group:
         raise AppError(status.HTTP_404_NOT_FOUND, "NOT_FOUND", "Group not found.")
 
-    # Only members can post
     if not StudyGroupMember.objects.filter(group=group, user=user).exists():
         raise AppError(status.HTTP_403_FORBIDDEN, "NOT_MEMBER",
                        "You must be a group member to post messages.")
@@ -384,4 +373,4 @@ def accept_answer(question_id: str, answer_id: str, user) -> dict:
     updated = StudyAnswer.objects.filter(pk=answer_id, question=q).update(is_accepted=True)
     if not updated:
         raise AppError(status.HTTP_404_NOT_FOUND, "NOT_FOUND", "Answer not found.")
-    return {"success": True, "message": "Answer accepted."} 
+    return {"success": True, "message": "Answer accepted."}

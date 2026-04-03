@@ -41,23 +41,23 @@ class UpdateBookingSerializer(serializers.Serializer):
 
 class GroupMemberSerializer(serializers.ModelSerializer):
     """
-    Returns a flat shape that the Flutter _GroupMemberRow.fromJson can parse.
-    Includes both nested 'user' object AND flat user_id/full_name fields so
-    the Flutter _extractId() helper works correctly with either shape.
+    Flat shape for Flutter _GroupMemberRow.fromJson.
+    Exposes is_creator (boolean). No is_admin — column does not exist in DB.
     """
-    user_id   = serializers.UUIDField(source="user.id", read_only=True)
-    full_name = serializers.SerializerMethodField()
-    degree    = serializers.SerializerMethodField()
-    group_id  = serializers.UUIDField(source="group.id", read_only=True)
-    is_online = serializers.SerializerMethodField()
+    user_id    = serializers.UUIDField(source="user.id", read_only=True)
+    full_name  = serializers.SerializerMethodField()
+    degree     = serializers.SerializerMethodField()
+    group_id   = serializers.UUIDField(source="group.id", read_only=True)
+    is_online  = serializers.SerializerMethodField()
+    is_creator = serializers.BooleanField(read_only=True)
 
     class Meta:
         model  = StudyGroupMember
-        fields = ["id", "group_id", "user_id", "full_name", "degree", "is_online", "is_creator", "joined_at"]
+        fields = ["id", "group_id", "user_id", "full_name", "degree",
+                  "is_online", "is_creator", "joined_at"]
 
     def get_full_name(self, obj):
         u = obj.user
-        # Support both full_name field and first/last split
         return (getattr(u, "full_name", None)
                 or f"{getattr(u, 'first_name', '')} {getattr(u, 'last_name', '')}".strip()
                 or getattr(u, "username", "Member"))
@@ -69,15 +69,12 @@ class GroupMemberSerializer(serializers.ModelSerializer):
                 or "")
 
     def get_is_online(self, obj):
-        # Extend this with real presence logic if available
         return False
 
 
 class GroupSerializer(serializers.ModelSerializer):
-    # Return plain UUID strings — Flutter reads creator_id OR creatorId
     creatorId   = serializers.UUIDField(source="creator_id", read_only=True)
     maxMembers  = serializers.IntegerField(source="max_members")
-    # Always use the real DB count to avoid drift from manual counter
     memberCount = serializers.SerializerMethodField()
     createdAt   = serializers.DateTimeField(source="created_at", read_only=True)
 
@@ -95,11 +92,6 @@ class CreateGroupSerializer(serializers.Serializer):
     subject     = serializers.CharField(max_length=100)
     description = serializers.CharField(required=False, allow_blank=True, default="")
     max_members = serializers.IntegerField(default=10, min_value=1)
-    # Accept active from Flutter but default to True — this was the root cause
-    # of the "only 3 visible" bug: old serializer silently dropped active=true,
-    # relying on the model default, which was fine. BUT if any groups were
-    # accidentally created with active=False via Django admin or a migration,
-    # they'd be filtered out. Including it here makes the intent explicit.
     active      = serializers.BooleanField(default=True, required=False)
 
 
