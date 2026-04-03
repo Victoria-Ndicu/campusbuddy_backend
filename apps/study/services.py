@@ -200,6 +200,12 @@ def delete_group(group_id: str, user) -> dict:
     if str(group.creator_id) != str(user.id):
         raise AppError(status.HTTP_403_FORBIDDEN, "FORBIDDEN",
                        "Only the group creator can delete this group.")
+    # Manually delete related rows for tables that exist in the database.
+    # StudyGroupSession (study_group_sessions) is intentionally skipped because
+    # that table was never migrated to the deployed database, and relying on
+    # Django's cascade delete would raise a ProgrammingError against it.
+    StudyGroupMember.objects.filter(group=group).delete()
+    StudyGroupMessage.objects.filter(group=group).delete()
     group.delete()
     return {"success": True}
 
