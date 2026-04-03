@@ -200,10 +200,6 @@ def delete_group(group_id: str, user) -> dict:
     if str(group.creator_id) != str(user.id):
         raise AppError(status.HTTP_403_FORBIDDEN, "FORBIDDEN",
                        "Only the group creator can delete this group.")
-    # Explicitly delete related rows first to avoid any cascade issues
-    StudyGroupMember.objects.filter(group=group).delete()
-    StudyGroupMessage.objects.filter(group=group).delete()
-    StudyGroupSession.objects.filter(group=group).delete()
     group.delete()
     return {"success": True}
 
