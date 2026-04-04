@@ -1,3 +1,4 @@
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -5,6 +6,7 @@ from rest_framework.views import APIView
 from core.pagination import StandardPagination
 
 from . import services
+from .models import HousingAlert, AlertNotification
 from .serializers import (
     CreateAlertSerializer, CreateHousingListingSerializer,
     CreateRoommatePreferenceSerializer, CreateRoommateProfileSerializer,
@@ -14,10 +16,21 @@ from .serializers import (
 )
 
 
+class HousingModuleView(APIView):
+    """Admin only. GET current state; POST {"enabled": true/false} to toggle."""
+    def get(self, request):
+        return Response(services.get_module_settings())
+
+    def post(self, request):
+        enabled = request.data.get("enabled")
+        if not isinstance(enabled, bool):
+            return Response({"error": {"code": "INVALID", "message": "'enabled' must be a boolean."}}, status=400)
+        return Response(services.toggle_module(enabled, request.user))
+
+
 class HousingListingsView(APIView):
     def get(self, request):
         filters = {k: request.query_params.get(k) for k in ["max_rent", "min_bedrooms", "search"]}
-        # tags can be multi-value: ?tags=apartment&tags=hostel
         tags = request.query_params.getlist("tags")
         if tags:
             filters["tags"] = tags
@@ -66,7 +79,6 @@ class RoommateProfilesView(APIView):
         paginator = StandardPagination()
         page = paginator.paginate_queryset(profiles, request)
         data = RoommateProfileSerializer(page, many=True).data
-        # Attach compatibility score using the profile-to-profile scorer
         try:
             my_profile = request.user.roommate_profile
             for item, profile in zip(data, page):
@@ -107,13 +119,53 @@ class AlertDetailView(APIView):
         return Response(services.delete_alert(str(pk), request.user))
 
 
-class ModuleSettingsView(APIView):
-    """Admin only. GET current state; POST {"enabled": true/false} to toggle."""
-    def get(self, request):
-        return Response(services.get_module_settings())
+class AlertNotificationsView(APIView):
+    permission_classes = [IsAuthenticated]
 
-    def post(self, request):
-        enabled = request.data.get("enabled")
-        if not isinstance(enabled, bool):
-            return Response({"error": {"code": "INVALID", "message": "'enabled' must be a boolean."}}, status=400)
-        return Response(services.toggle_module(enabled, request.user))
+    def get(self, request):
+        notifications = AlertNotification.objects.filter(
+            user=request.user
+        ).order_by("-created_at")
+        data = [
+            {
+                "id":            str(n.id),
+                "message":       n.message,
+                "emoji":         n.emoji,
+                "created_at":    n.created_at.isoformat(),
+                "listing_title": n.listing_title,
+                "listing":       str(n.listing_id) if n.listing_id else None,
+                "is_read":       n.is_read,
+            }
+            for n in notifications
+        ]
+        return Response(data)
+
+
+class AlertNotificationDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        try:
+            n = AlertNotification.objects.get(pk=pk, user=request.user)
+            n.is_read = request.data.get("is_read", n.is_read)
+            n.save()
+            return Response({"id": str(n.id), "is_read": n.is_read})
+        except AlertNotification.DoesNotExist:
+            return Response({"detail": "Not found."}, status=404)
+
+
+class HousingStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .models import HousingListing
+        return Response({
+            "listings":    HousingListing.objects.filter(status="active").count(),
+            "matches":     0,
+            "near_campus": 0,
+            "alerts":      HousingAlert.objects.filter(user=request.user, active=True).count(),
+        })
+
+
+# Alias kept for backwards compatibility with ModuleSettingsView name if used elsewhere
+ModuleSettingsView = HousingModuleView

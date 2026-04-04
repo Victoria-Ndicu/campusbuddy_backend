@@ -123,3 +123,18 @@ class HousingSaved(models.Model):
     class Meta:
         db_table        = "housing_saved"
         unique_together = [["user", "listing"]]
+
+
+class AlertNotification(models.Model):
+    id            = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user          = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="alert_notifications")
+    listing       = models.ForeignKey(HousingListing, on_delete=models.SET_NULL, null=True, blank=True, related_name="notifications")
+    listing_title = models.CharField(max_length=200, blank=True)
+    message       = models.TextField()
+    emoji         = models.CharField(max_length=10, blank=True, default="🔔")
+    is_read       = models.BooleanField(default=False)
+    created_at    = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "alert_notifications"
+        ordering = ["-created_at"]
