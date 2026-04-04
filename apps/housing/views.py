@@ -7,14 +7,20 @@ from core.pagination import StandardPagination
 from . import services
 from .serializers import (
     CreateAlertSerializer, CreateHousingListingSerializer,
-    CreateRoommateProfileSerializer, HousingListingSerializer,
-    RoommateProfileSerializer, UpdateHousingListingSerializer,
+    CreateRoommatePreferenceSerializer, CreateRoommateProfileSerializer,
+    HousingListingSerializer, HousingModuleSettingsSerializer,
+    RoommatePreferenceSerializer, RoommateProfileSerializer,
+    UpdateHousingListingSerializer,
 )
 
 
 class HousingListingsView(APIView):
     def get(self, request):
-        filters = {k: request.query_params.get(k) for k in ["campus_id", "max_rent", "min_bedrooms", "search"]}
+        filters = {k: request.query_params.get(k) for k in ["max_rent", "min_bedrooms", "search"]}
+        # tags can be multi-value: ?tags=apartment&tags=hostel
+        tags = request.query_params.getlist("tags")
+        if tags:
+            filters["tags"] = tags
         qs = services.list_listings(filters)
         paginator = StandardPagination()
         page = paginator.paginate_queryset(qs, request)
@@ -56,17 +62,15 @@ class HousingUploadView(APIView):
 
 class RoommateProfilesView(APIView):
     def get(self, request):
-        campus_id = request.query_params.get("campus_id")
-        qs, current_user = services.get_roommate_profiles(campus_id, request.user)
+        profiles = services.get_roommate_profiles(request.user)
         paginator = StandardPagination()
-        page = paginator.paginate_queryset(qs, request)
+        page = paginator.paginate_queryset(profiles, request)
         data = RoommateProfileSerializer(page, many=True).data
-        # Attach compatibility scores
+        # Attach compatibility score using the profile-to-profile scorer
         try:
             my_profile = request.user.roommate_profile
             for item, profile in zip(data, page):
-                if str(profile.user_id) != str(request.user.id):
-                    item["compatibilityScore"] = services.compute_compatibility(my_profile, profile)
+                item["compatibilityScore"] = services.compute_compatibility(my_profile, profile)
         except Exception:
             pass
         return paginator.get_paginated_response(data)
@@ -77,9 +81,18 @@ class RoommateProfilesView(APIView):
         return Response(services.upsert_roommate_profile(s.validated_data, request.user))
 
 
+class RoommatePreferenceView(APIView):
+    def get(self, request):
+        return Response(services.get_roommate_preference(request.user))
+
+    def post(self, request):
+        s = CreateRoommatePreferenceSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        return Response(services.upsert_roommate_preference(s.validated_data, request.user))
+
+
 class AlertsView(APIView):
     def get(self, request):
-        from .serializers import CreateAlertSerializer
         qs = services.list_alerts(request.user)
         return Response({"success": True, "data": list(qs.values())})
 
@@ -92,3 +105,15 @@ class AlertsView(APIView):
 class AlertDetailView(APIView):
     def delete(self, request, pk):
         return Response(services.delete_alert(str(pk), request.user))
+
+
+class ModuleSettingsView(APIView):
+    """Admin only. GET current state; POST {"enabled": true/false} to toggle."""
+    def get(self, request):
+        return Response(services.get_module_settings())
+
+    def post(self, request):
+        enabled = request.data.get("enabled")
+        if not isinstance(enabled, bool):
+            return Response({"error": {"code": "INVALID", "message": "'enabled' must be a boolean."}}, status=400)
+        return Response(services.toggle_module(enabled, request.user))
