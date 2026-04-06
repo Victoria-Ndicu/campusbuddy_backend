@@ -4,12 +4,6 @@ from . import views
 app_name = "housing"
 
 urlpatterns = [
-    # ── User preferences  (module on/off — persists across sign-out) ───────
-    # Registered here for convenience; you may also register this in your
-    # core/users urls.py if you prefer — just make sure it resolves to
-    # GET/PATCH /api/v1/user/preferences/
-    path("../user/preferences/",                 views.UserPreferencesView.as_view(),             name="user-preferences"),
-
     # ── Admin module settings ───────────────────────────────────────────────
     path("module/",                              views.HousingModuleView.as_view(),               name="module"),
 
