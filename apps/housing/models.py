@@ -57,20 +57,23 @@ class HousingListing(models.Model):
 
 
 class RoommateProfile(models.Model):
-    id             = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user           = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="roommate_profile")
-    bio            = models.TextField(blank=True, null=True)
-    budget_min     = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    budget_max     = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    preferred_area = models.CharField(max_length=200, blank=True, null=True)
-    sleep_schedule = models.CharField(max_length=20, blank=True, null=True)
-    cleanliness    = models.CharField(max_length=20, blank=True, null=True)
-    noise_level    = models.CharField(max_length=20, blank=True, null=True)
-    smoking        = models.BooleanField(default=False)
-    pets           = models.BooleanField(default=False)
-    active         = models.BooleanField(default=True)
-    created_at     = models.DateTimeField(auto_now_add=True)
-    updated_at     = models.DateTimeField(auto_now=True)
+    id              = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user            = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="roommate_profile")
+    bio             = models.TextField(blank=True, null=True)
+    budget_min      = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    budget_max      = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # preferred_area kept for backward compat and scoring (first item of preferred_areas)
+    preferred_area  = models.CharField(max_length=200, blank=True, null=True)
+    # preferred_areas stores the full list Flutter sends as preferred_locations
+    preferred_areas = models.JSONField(default=list, blank=True)
+    sleep_schedule  = models.CharField(max_length=20, blank=True, null=True)
+    cleanliness     = models.CharField(max_length=20, blank=True, null=True)
+    noise_level     = models.CharField(max_length=20, blank=True, null=True)
+    smoking         = models.BooleanField(default=False)
+    pets            = models.BooleanField(default=False)
+    active          = models.BooleanField(default=True)
+    created_at      = models.DateTimeField(auto_now_add=True)
+    updated_at      = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "roommate_profiles"
@@ -84,6 +87,7 @@ class RoommatePreference(models.Model):
     budget_min        = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     budget_max        = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     preferred_area    = models.CharField(max_length=200, blank=True, null=True)
+    preferred_areas   = models.JSONField(default=list, blank=True)
     gender_preference = models.CharField(max_length=10, choices=GENDER_CHOICES, default="any")
     sleep_schedule    = models.CharField(max_length=20, blank=True, null=True)
     cleanliness       = models.CharField(max_length=20, blank=True, null=True)

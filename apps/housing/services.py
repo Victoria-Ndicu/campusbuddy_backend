@@ -112,16 +112,43 @@ def upload_image(file, user) -> dict:
 # Roommate profiles
 # ---------------------------------------------------------------------------
 
-def get_roommate_profiles(current_user):
+def get_roommate_profiles(current_user, filter_key: str = "", search: str = ""):
+    """
+    Returns a sorted list of RoommateProfile objects for the browse screen.
+
+    filter_key values (sent by Flutter as ?filter=):
+        ""            — all profiles
+        "high_match"  — top half by compatibility score
+        "near_campus" — placeholder (implement geo when you have campus coords)
+        "female"      — profiles whose user.gender == "female"
+        "male"        — profiles whose user.gender == "male"
+
+    search — filters on user first/last name and preferred_area.
+    """
     check_module_enabled()
-    qs = RoommateProfile.objects.filter(active=True).exclude(user=current_user)
+    qs = RoommateProfile.objects.filter(active=True).exclude(user=current_user).select_related("user")
+
+    # Text search across name and location
+    if search:
+        from django.db.models import Q
+        qs = qs.filter(
+            Q(user__first_name__icontains=search) |
+            Q(user__last_name__icontains=search)  |
+            Q(preferred_area__icontains=search)
+        )
+
+    # Gender filter — requires a 'gender' field on your user model
+    if filter_key == "female":
+        qs = qs.filter(user__gender="female")
+    elif filter_key == "male":
+        qs = qs.filter(user__gender="male")
 
     try:
         my_pref = current_user.roommate_preference
     except RoommatePreference.DoesNotExist:
         my_pref = None
 
-    profiles = list(qs.select_related("user"))
+    profiles = list(qs)
 
     def _score(profile):
         score = 0
@@ -149,7 +176,7 @@ def get_roommate_profiles(current_user):
                 score += 7
             # Gender preference
             gender_preference = getattr(my_pref, "gender_preference", "any")
-            profile_gender = getattr(profile.user, "gender", None)
+            profile_gender    = getattr(profile.user, "gender", None)
             if gender_preference != "any" and profile_gender:
                 if gender_preference == profile_gender:
                     score += 20
@@ -158,15 +185,28 @@ def get_roommate_profiles(current_user):
         return score
 
     profiles.sort(key=_score, reverse=True)
+
+    # high_match — keep only the top half after scoring
+    if filter_key == "high_match" and profiles:
+        cutoff   = max(1, len(profiles) // 2)
+        profiles = profiles[:cutoff]
+
+    # near_campus — uncomment and implement when you have campus coordinates
+    # if filter_key == "near_campus":
+    #     profiles = [p for p in profiles if _near_campus(p)]
+
     return profiles
 
 
 def upsert_roommate_profile(data: dict, user) -> dict:
     check_module_enabled()
-    profile, _ = RoommateProfile.objects.update_or_create(
+    profile, created = RoommateProfile.objects.update_or_create(
         user=user,
         defaults={k: v for k, v in data.items() if v is not None},
     )
+    # Fire roommate alerts when a new profile is created so interested users get notified
+    if created:
+        _fire_roommate_alerts(profile)
     from .serializers import RoommateProfileSerializer
     return {"success": True, "data": RoommateProfileSerializer(profile).data}
 
@@ -192,6 +232,10 @@ def get_roommate_preference(user) -> dict:
 
 
 def compute_compatibility(me: RoommateProfile, other: RoommateProfile) -> int:
+    """
+    Profile-vs-profile score used as match_percent on each card.
+    Starts at 100 and deducts for mismatches.
+    """
     score = 100
     for field in ["sleep_schedule", "cleanliness", "noise_level"]:
         if getattr(me, field) and getattr(other, field) and getattr(me, field) != getattr(other, field):
@@ -250,8 +294,10 @@ def _fire_alerts(listing: HousingListing) -> None:
 
 
 def _fire_roommate_alerts(new_profile: RoommateProfile) -> None:
-    """Called when a new RoommateProfile is created/activated. Notifies users
-    whose alert has notify_roommate=True and whose preference matches this profile."""
+    """
+    Called when a new RoommateProfile is created. Notifies users whose alert
+    has notify_roommate=True and whose preference matches the new profile.
+    """
     alerts = HousingAlert.objects.filter(active=True, notify_roommate=True)
     for alert in alerts:
         if alert.user_id == new_profile.user_id:
@@ -260,13 +306,14 @@ def _fire_roommate_alerts(new_profile: RoommateProfile) -> None:
             pref = alert.user.roommate_preference
         except RoommatePreference.DoesNotExist:
             continue
-        # Must have budget overlap and location match to qualify as a match
+        # Budget overlap required
         budget_ok = True
         if (pref.budget_min and pref.budget_max
                 and new_profile.budget_min and new_profile.budget_max):
             overlap = (min(float(pref.budget_max), float(new_profile.budget_max))
                        - max(float(pref.budget_min), float(new_profile.budget_min)))
             budget_ok = overlap >= 0
+        # Location match required (blank on either side = pass)
         location_ok = (
             not pref.preferred_area
             or not new_profile.preferred_area
