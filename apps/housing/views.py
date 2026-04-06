@@ -8,7 +8,8 @@ from core.pagination import StandardPagination
 from . import services
 from .models import HousingAlert, AlertNotification, RoommateProfile
 from .serializers import (
-    CreateAlertSerializer, CreateHousingListingSerializer,
+    CreateAlertSerializer, UpdateAlertSerializer,
+    CreateHousingListingSerializer, HousingAlertSerializer,
     CreateRoommatePreferenceSerializer, CreateRoommateProfileSerializer,
     HousingListingSerializer, HousingModuleSettingsSerializer,
     RoommatePreferenceSerializer, RoommateProfileSerializer,
@@ -17,7 +18,38 @@ from .serializers import (
 
 
 # ---------------------------------------------------------------------------
-# Module settings
+# User preferences  (per-user housing module toggle)
+# Endpoint: GET/PATCH /api/v1/user/preferences/
+# ---------------------------------------------------------------------------
+
+class UserPreferencesView(APIView):
+    """
+    GET   → returns { housing_module_enabled: bool, ... }
+    PATCH → accepts { housing_module_enabled: bool }
+            Only the authenticated user can change their own preference.
+            The backend never flips this automatically.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(services.get_user_preferences(request.user))
+
+    def patch(self, request):
+        # Only allow housing_module_enabled — ignore anything else
+        data = {}
+        if "housing_module_enabled" in request.data:
+            val = request.data["housing_module_enabled"]
+            if not isinstance(val, bool):
+                return Response(
+                    {"error": {"code": "INVALID", "message": "'housing_module_enabled' must be a boolean."}},
+                    status=400,
+                )
+            data["housing_module_enabled"] = val
+        return Response(services.update_user_preferences(data, request.user))
+
+
+# ---------------------------------------------------------------------------
+# Global module settings  (admin)
 # ---------------------------------------------------------------------------
 
 class HousingModuleView(APIView):
@@ -89,37 +121,23 @@ class HousingUploadView(APIView):
 
 
 # ---------------------------------------------------------------------------
-# Roommate profiles
+# Roommate views
 # ---------------------------------------------------------------------------
 
 class RoommateProfilesView(APIView):
-    """
-    GET  /roommates/  — browse all profiles sorted by compatibility.
-                        Accepts ?filter= and ?search= from Flutter.
-    POST /roommates/  — create / update own profile (legacy endpoint kept).
-    """
-
     def get(self, request):
         filter_key = request.query_params.get("filter", "")
         search     = request.query_params.get("search", "")
-
-        profiles = services.get_roommate_profiles(
-            request.user,
-            filter_key=filter_key,
-            search=search,
-        )
-        paginator = StandardPagination()
-        page = paginator.paginate_queryset(profiles, request)
-        data = RoommateProfileSerializer(page, many=True).data
-
-        # Attach match_percent — the key Flutter's _Roommate.fromJson reads
+        profiles   = services.get_roommate_profiles(request.user, filter_key=filter_key, search=search)
+        paginator  = StandardPagination()
+        page       = paginator.paginate_queryset(profiles, request)
+        data       = RoommateProfileSerializer(page, many=True).data
         try:
             my_profile = request.user.roommate_profile
             for item, profile in zip(data, page):
                 item["match_percent"] = services.compute_compatibility(my_profile, profile)
         except Exception:
             pass
-
         return paginator.get_paginated_response(data)
 
     def post(self, request):
@@ -129,18 +147,12 @@ class RoommateProfilesView(APIView):
 
 
 class MyRoommateProfileView(APIView):
-    """
-    GET  /roommates/my-profile/  — return the authenticated user's own profile.
-    POST /roommates/my-profile/  — create or update it.
-    Flutter's HHRoommatePrefsScreen hits both of these.
-    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         try:
             profile = request.user.roommate_profile
         except RoommateProfile.DoesNotExist:
-            # 404 is handled gracefully by Flutter — defaults are used
             return Response({"detail": "No profile yet."}, status=404)
         return Response({"success": True, "data": RoommateProfileSerializer(profile).data})
 
@@ -151,16 +163,11 @@ class MyRoommateProfileView(APIView):
 
 
 class RoommateProfileDetailView(APIView):
-    """
-    GET /roommates/<uuid>/  — full profile Flutter shows on HHRoommateDetailScreen.
-    """
-
     def get(self, request, pk):
         profile = RoommateProfile.objects.filter(pk=pk, active=True).select_related("user").first()
         if not profile:
             return Response({"detail": "Profile not found."}, status=404)
         data = RoommateProfileSerializer(profile).data
-        # Attach match_percent for the detail screen header badge
         try:
             my_profile        = request.user.roommate_profile
             data["match_percent"] = services.compute_compatibility(my_profile, profile)
@@ -170,11 +177,6 @@ class RoommateProfileDetailView(APIView):
 
 
 class RoommateConnectView(APIView):
-    """
-    POST /roommates/<uuid>/connect/
-    Sends a connection request. Wire this to your messaging / notification
-    system — a stub 200 is returned until then.
-    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
@@ -183,20 +185,11 @@ class RoommateConnectView(APIView):
             return Response({"detail": "Profile not found."}, status=404)
         if profile.user == request.user:
             return Response({"detail": "You cannot connect with yourself."}, status=400)
-        # TODO: replace stub with a real ConnectRequest model or Celery task, e.g.:
-        # notify_roommate_connect.delay(str(request.user.id), str(profile.user.id))
-        return Response({
-            "success": True,
-            "message": f"Connect request sent to {profile.user}.",
-        })
+        # TODO: wire to messaging / notification system
+        return Response({"success": True, "message": f"Connect request sent to {profile.user}."})
 
 
 class RoommatePreferenceView(APIView):
-    """
-    GET  /roommate-preference/  — return current user's preference.
-    POST /roommate-preference/  — create or update it.
-    """
-
     def get(self, request):
         return Response(services.get_roommate_preference(request.user))
 
@@ -207,13 +200,16 @@ class RoommatePreferenceView(APIView):
 
 
 # ---------------------------------------------------------------------------
-# Alerts
+# Alert rules
 # ---------------------------------------------------------------------------
 
 class AlertsView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
-        qs = services.list_alerts(request.user)
-        return Response({"success": True, "data": list(qs.values())})
+        qs   = services.list_alerts(request.user)
+        data = HousingAlertSerializer(qs, many=True).data
+        return Response({"success": True, "results": data})
 
     def post(self, request):
         s = CreateAlertSerializer(data=request.data)
@@ -222,9 +218,21 @@ class AlertsView(APIView):
 
 
 class AlertDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        """Flutter calls this to toggle is_active on an alert rule."""
+        s = UpdateAlertSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        return Response(services.update_alert(str(pk), s.validated_data, request.user))
+
     def delete(self, request, pk):
         return Response(services.delete_alert(str(pk), request.user))
 
+
+# ---------------------------------------------------------------------------
+# Alert notifications  (inbox)
+# ---------------------------------------------------------------------------
 
 class AlertNotificationsView(APIView):
     permission_classes = [IsAuthenticated]
@@ -274,7 +282,7 @@ class HousingStatsView(APIView):
             "listings":    HousingListing.objects.filter(status="active").count(),
             "matches":     0,
             "near_campus": 0,
-            "alerts":      HousingAlert.objects.filter(user=request.user, active=True).count(),
+            "alerts":      HousingAlert.objects.filter(user=request.user, is_active=True).count(),
         })
 
 

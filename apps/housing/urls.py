@@ -4,7 +4,13 @@ from . import views
 app_name = "housing"
 
 urlpatterns = [
-    # ── Module settings ────────────────────────────────────────────────────
+    # ── User preferences  (module on/off — persists across sign-out) ───────
+    # Registered here for convenience; you may also register this in your
+    # core/users urls.py if you prefer — just make sure it resolves to
+    # GET/PATCH /api/v1/user/preferences/
+    path("../user/preferences/",                 views.UserPreferencesView.as_view(),             name="user-preferences"),
+
+    # ── Admin module settings ───────────────────────────────────────────────
     path("module/",                              views.HousingModuleView.as_view(),               name="module"),
 
     # ── Listings ───────────────────────────────────────────────────────────
@@ -16,9 +22,7 @@ urlpatterns = [
     path("uploads/",                             views.HousingUploadView.as_view(),               name="upload"),
 
     # ── Roommates ──────────────────────────────────────────────────────────
-    # IMPORTANT: my-profile/ and <uuid>/connect/ must come BEFORE <uuid:pk>/
-    # Django matches top-to-bottom; "my-profile" would be parsed as a UUID
-    # and fail (returning 404) if the detail route appears first.
+    # my-profile/ and <uuid>/connect/ MUST come before <uuid:pk>/
     path("roommates/",                           views.RoommateProfilesView.as_view(),            name="roommates"),
     path("roommates/my-profile/",                views.MyRoommateProfileView.as_view(),           name="roommate-my-profile"),
     path("roommates/<uuid:pk>/connect/",         views.RoommateConnectView.as_view(),             name="roommate-connect"),
@@ -26,7 +30,7 @@ urlpatterns = [
     path("roommate-preference/",                 views.RoommatePreferenceView.as_view(),          name="roommate-preference"),
 
     # ── Alerts ─────────────────────────────────────────────────────────────
-    # IMPORTANT: notifications/ must come BEFORE <uuid:pk>/ for the same reason
+    # notifications/ MUST come before <uuid:pk>/
     path("alerts/notifications/",                views.AlertNotificationsView.as_view(),          name="alert-notifications"),
     path("alerts/notifications/<uuid:pk>/",      views.AlertNotificationDetailView.as_view(),     name="alert-notification-detail"),
     path("alerts/",                              views.AlertsView.as_view(),                      name="alerts"),
