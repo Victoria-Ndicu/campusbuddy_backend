@@ -1,14 +1,38 @@
+"""EventBoard URL configuration."""
 from django.urls import path
 from . import views
 
 app_name = "events"
 
 urlpatterns = [
-    path("",                          views.EventsView.as_view(),           name="list"),
-    path("<uuid:pk>/",                views.EventDetailView.as_view(),      name="detail"),
-    path("uploads/banner/",           views.EventBannerUploadView.as_view(), name="upload-banner"),
-    path("<uuid:pk>/rsvp/",           views.EventRSVPView.as_view(),        name="rsvp"),
-    path("reminders/",                views.EventReminderView.as_view(),    name="reminder"),
-    path("<uuid:pk>/save/",           views.EventSaveView.as_view(),        name="save"),
-    path("<uuid:pk>/broadcast/",      views.EventBroadcastView.as_view(),   name="broadcast"),
+    # ── Collection ────────────────────────────────────────────────────
+    # GET  → list published events (filters: category, search, from_date)
+    # POST → create event  (body: CreateEventSerializer)
+    path("", views.EventsView.as_view(), name="list"),
+
+    # ── Single event ──────────────────────────────────────────────────
+    # GET    → event detail + userRsvp field
+    # PATCH  → update event (organiser / admin only)
+    # DELETE → cancel event (organiser / admin only)
+    path("<uuid:pk>/", views.EventDetailView.as_view(), name="detail"),
+
+    # ── Banner upload ─────────────────────────────────────────────────
+    # POST multipart/form-data { file } → { data: { bannerUrl } }
+    path("uploads/banner/", views.EventBannerUploadView.as_view(), name="upload-banner"),
+
+    # ── RSVP ──────────────────────────────────────────────────────────
+    # POST { status: "going" | "not_going" }
+    path("<uuid:pk>/rsvp/", views.EventRSVPView.as_view(), name="rsvp"),
+
+    # ── Reminders ─────────────────────────────────────────────────────
+    # POST { event_id, remind_at }
+    path("reminders/", views.EventReminderView.as_view(), name="reminder"),
+
+    # ── Save / unsave ─────────────────────────────────────────────────
+    # POST → toggles saved state, returns { saved: true|false }
+    path("<uuid:pk>/save/", views.EventSaveView.as_view(), name="save"),
+
+    # ── Broadcast ─────────────────────────────────────────────────────
+    # POST { message } → push to all 'going' attendees (organiser only)
+    path("<uuid:pk>/broadcast/", views.EventBroadcastView.as_view(), name="broadcast"),
 ]
