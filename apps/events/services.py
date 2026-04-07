@@ -1,7 +1,6 @@
 """EventBoard service layer — campus_id removed, base64 banner support."""
 import base64
 import uuid
-import imghdr
 from rest_framework import status
 from core.exceptions import AppError
 from core.services.storage_service import upload_file, validate_image
