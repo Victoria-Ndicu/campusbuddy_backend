@@ -92,7 +92,42 @@ def list_events_serialized(filters: dict, user) -> list:
 
 
 # ─────────────────────────────────────────────────────────────
-#  GET (single event)
+#  MY RSVPs
+# ─────────────────────────────────────────────────────────────
+def list_my_rsvps(user, rsvp_status_filter: str | None = None):
+    """
+    GET /api/v1/events/my-rsvps/
+    Returns a queryset of Events the user has RSVPed to, annotated
+    with the user's rsvp_status.  Optionally filtered by ?status=.
+    """
+    from django.db.models import CharField, Value
+    from django.db.models.functions import Coalesce
+
+    rsvp_qs = EventRSVP.objects.filter(user=user)
+    if rsvp_status_filter:
+        rsvp_qs = rsvp_qs.filter(rsvp_status=rsvp_status_filter)
+
+    event_ids = rsvp_qs.values_list("event_id", flat=True)
+
+    # Annotate each event with the user's rsvp_status via a subquery
+    from django.db.models import OuterRef, Subquery
+    user_rsvp_subquery = (
+        EventRSVP.objects
+        .filter(event=OuterRef("pk"), user=user)
+        .values("rsvp_status")[:1]
+    )
+
+    qs = (
+        Event.objects
+        .filter(pk__in=event_ids)
+        .annotate(user_rsvp_status=Subquery(user_rsvp_subquery, output_field=CharField()))
+        .order_by("start_at")
+    )
+    return qs
+
+
+# ─────────────────────────────────────────────────────────────
+#  GET
 # ─────────────────────────────────────────────────────────────
 def get_event(event_id: str, user) -> dict:
     """GET /api/v1/events/<id>/"""
