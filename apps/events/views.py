@@ -119,6 +119,29 @@ class EventSaveView(APIView):
         return Response(services.toggle_save(str(pk), request.user))
 
 
+class MyRSVPsView(APIView):
+    """
+    GET /api/v1/events/my-rsvps/
+    Returns a paginated list of events the authenticated user has RSVPed to.
+    Each event includes a `userRsvp` field with the user's RSVP status.
+
+    Optional query param:
+      ?status=going|not_going|waitlist  — filter by RSVP status
+    """
+
+    def get(self, request):
+        status_filter = request.query_params.get("status")
+        qs = services.list_my_rsvps(request.user, rsvp_status_filter=status_filter)
+        paginator = StandardPagination()
+        page = paginator.paginate_queryset(qs, request)
+        data = []
+        for event in page:
+            event_data = EventSerializer(event).data
+            event_data["userRsvp"] = event.user_rsvp_status
+            data.append(event_data)
+        return paginator.get_paginated_response(data)
+
+
 class EventBroadcastView(APIView):
     """
     POST /api/v1/events/<id>/broadcast/
