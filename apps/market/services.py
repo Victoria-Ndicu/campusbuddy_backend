@@ -3,19 +3,18 @@ from django.db.models import Avg
 from rest_framework import status
 
 from core.exceptions import AppError
-from core.services.storage_service import upload_file, validate_image
 
 from .models import (
     MarketDonationClaim, MarketListing, MarketMessage,
     MarketReview, MarketSavedListing,
 )
-from .serializers import MarketListingSerializer, MessageSerializer
+from .serializers import MarketListingSerializer, MessageSerializer, SavedListingSerializer
 
 
-def list_listings(filters: dict, user) -> dict:
+# ── Listings ──────────────────────────────────────────────────────────────────
+
+def list_listings(filters: dict, user):
     qs = MarketListing.objects.filter(status=filters.get("status", "active"))
-    if filters.get("campus_id"):
-        qs = qs.filter(campus_id=filters["campus_id"])
     if filters.get("category"):
         qs = qs.filter(category=filters["category"])
     if filters.get("listing_type"):
@@ -40,9 +39,9 @@ def create_listing(data: dict, user) -> dict:
         price=data.get("price"),
         category=data["category"],
         condition=data.get("condition"),
-        campus_id=data["campus_id"],
         listing_type=data.get("listing_type", "sale"),
-        image_urls=data.get("image_urls", []),
+        # image_data is already a validated list of normalised data-URI strings
+        image_data=data.get("image_data", []),
     )
     return {"success": True, "data": MarketListingSerializer(listing).data}
 
@@ -65,11 +64,7 @@ def delete_listing(listing_id: str, user) -> dict:
     return {"success": True, "message": "Listing removed."}
 
 
-def upload_image(file, user) -> dict:
-    validate_image(file)
-    url = upload_file(file, folder="listings", user_id=str(user.id))
-    return {"success": True, "data": {"url": url}}
-
+# ── Donations ─────────────────────────────────────────────────────────────────
 
 def claim_donation(listing_id: str, message: str, user) -> dict:
     listing = _get_or_404(listing_id)
@@ -102,6 +97,8 @@ def update_claim(listing_id: str, claim_id: str, new_status: str, user) -> dict:
     return {"success": True, "message": f"Claim {new_status}."}
 
 
+# ── Messages ──────────────────────────────────────────────────────────────────
+
 def send_message(data: dict, user) -> dict:
     from apps.authentication.models import User
     listing = _get_or_404(str(data["listing_id"]))
@@ -133,16 +130,15 @@ def send_message(data: dict, user) -> dict:
     return {"success": True, "message": "Message sent.", "data": MessageSerializer(msg).data}
 
 
-def get_messages(listing_id: str, user) -> list:
+def get_messages(listing_id: str, user):
     listing = _get_or_404(listing_id)
-    return MarketMessage.objects.filter(
-        listing=listing
-    ).filter(
-        sender=user
-    ) | MarketMessage.objects.filter(
-        listing=listing, receiver=user
+    return (
+        MarketMessage.objects.filter(listing=listing, sender=user)
+        | MarketMessage.objects.filter(listing=listing, receiver=user)
     )
 
+
+# ── Saved listings ────────────────────────────────────────────────────────────
 
 def toggle_save(listing_id: str, user) -> dict:
     _get_or_404(listing_id)
@@ -154,10 +150,21 @@ def toggle_save(listing_id: str, user) -> dict:
 
 
 def get_saved_listings(user):
-    return MarketListing.objects.filter(
-        saved_by__user=user
-    ).select_related("seller")
+    """
+    Returns MarketSavedListing queryset for the requesting user.
+    Each record carries:
+      - user_id  → the saver's ID   (exposed as 'saverId' in SavedListingSerializer)
+      - listing  → the full listing object
+    """
+    return (
+        MarketSavedListing.objects
+        .filter(user=user)
+        .select_related("listing", "listing__seller")
+        .order_by("-created_at")
+    )
 
+
+# ── Reviews ───────────────────────────────────────────────────────────────────
 
 def create_review(data: dict, user) -> dict:
     listing = _get_or_404(str(data["listing_id"]))

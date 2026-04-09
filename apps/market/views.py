@@ -1,5 +1,3 @@
-from rest_framework import status
-from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -8,8 +6,8 @@ from core.pagination import StandardPagination
 from . import services
 from .serializers import (
     ClaimSerializer, CreateListingSerializer, MessageSerializer,
-    ReviewSerializer, SendMessageSerializer, UpdateClaimSerializer,
-    UpdateListingSerializer, MarketListingSerializer,
+    ReviewSerializer, SavedListingSerializer, SendMessageSerializer,
+    UpdateClaimSerializer, UpdateListingSerializer, MarketListingSerializer,
 )
 
 
@@ -18,7 +16,7 @@ class ListingsView(APIView):
 
     def get(self, request):
         filters = {k: request.query_params.get(k) for k in
-                   ["campus_id", "category", "listing_type", "status", "search"]}
+                   ["category", "listing_type", "status", "search"]}
         qs = services.list_listings(filters, request.user)
         paginator = StandardPagination()
         page = paginator.paginate_queryset(qs, request)
@@ -43,17 +41,6 @@ class ListingDetailView(APIView):
 
     def delete(self, request, pk):
         return Response(services.delete_listing(str(pk), request.user))
-
-
-class UploadImageView(APIView):
-    """POST /market/uploads/"""
-    parser_classes = [MultiPartParser]
-
-    def post(self, request):
-        file = request.FILES.get("file")
-        if not file:
-            return Response({"error": {"code": "NO_FILE", "message": "No file provided."}}, status=400)
-        return Response(services.upload_image(file, request.user), status=201)
 
 
 class DonationClaimView(APIView):
@@ -102,7 +89,8 @@ class SavedListingsView(APIView):
         qs = services.get_saved_listings(request.user)
         paginator = StandardPagination()
         page = paginator.paginate_queryset(qs, request)
-        return paginator.get_paginated_response(MarketListingSerializer(page, many=True).data)
+        # SavedListingSerializer exposes saverId (the user who saved) + nested listing
+        return paginator.get_paginated_response(SavedListingSerializer(page, many=True).data)
 
     def post(self, request):
         listing_id = request.data.get("listing_id")
