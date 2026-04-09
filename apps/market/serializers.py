@@ -1,5 +1,5 @@
 import base64
-import imghdr
+import filetype
 
 from rest_framework import serializers
 
@@ -11,11 +11,10 @@ from .models import MarketDonationClaim, MarketListing, MarketMessage, MarketRev
 class Base64ImageField(serializers.Field):
     """
     Accepts a base64-encoded image string (with or without a data-URI prefix).
-    Validates that it is a real image and normalises it to:
+    Validates it is a real image and normalises it to:
         "data:<mime>;base64,<data>"
-    Stores / returns that normalised string.
     """
-    ALLOWED_TYPES = {"png", "jpeg", "gif", "webp"}
+    ALLOWED_MIMES  = {"image/png", "image/jpeg", "image/gif", "image/webp"}
     MAX_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB per image
 
     def to_internal_value(self, data):
@@ -30,7 +29,7 @@ class Base64ImageField(serializers.Field):
             except (ValueError, IndexError):
                 raise serializers.ValidationError("Malformed data-URI.")
         else:
-            raw = data
+            raw  = data
             mime = None
 
         # Decode
@@ -40,17 +39,20 @@ class Base64ImageField(serializers.Field):
             raise serializers.ValidationError("Invalid base64 encoding.")
 
         if len(decoded) > self.MAX_SIZE_BYTES:
-            raise serializers.ValidationError(f"Image exceeds {self.MAX_SIZE_BYTES // (1024*1024)} MB limit.")
+            raise serializers.ValidationError(
+                f"Image exceeds {self.MAX_SIZE_BYTES // (1024 * 1024)} MB limit.")
 
-        # Detect image type
-        img_type = imghdr.what(None, h=decoded)
-        if img_type not in self.ALLOWED_TYPES:
-            raise serializers.ValidationError(f"Unsupported image type '{img_type}'. Allowed: {self.ALLOWED_TYPES}.")
+        # Detect image type using filetype (works on Python 3.13+)
+        kind = filetype.guess(decoded)
+        if kind is None or kind.mime not in self.ALLOWED_MIMES:
+            detected = kind.mime if kind else "unknown"
+            raise serializers.ValidationError(
+                f"Unsupported image type '{detected}'. "
+                f"Allowed: {self.ALLOWED_MIMES}.")
 
-        # Normalise back to a consistent data-URI
-        if mime is None:
-            mime = f"image/{img_type}"
-        return f"data:{mime};base64,{raw}"
+        # Normalise to a consistent data-URI
+        normalised_mime = mime or kind.mime
+        return f"data:{normalised_mime};base64,{raw}"
 
     def to_representation(self, value):
         return value   # already a data-URI string
@@ -71,7 +73,7 @@ class Base64ImageListField(serializers.ListField):
 class MarketListingSerializer(serializers.ModelSerializer):
     sellerId    = serializers.UUIDField(source="seller_id", read_only=True)
     listingType = serializers.CharField(source="listing_type")
-    imageData   = serializers.JSONField(source="image_data")   # list of data-URI strings
+    imageData   = serializers.JSONField(source="image_data")
     viewCount   = serializers.IntegerField(source="view_count", read_only=True)
     createdAt   = serializers.DateTimeField(source="created_at", read_only=True)
 
@@ -91,7 +93,6 @@ class CreateListingSerializer(serializers.Serializer):
     category     = serializers.CharField(max_length=50)
     condition    = serializers.ChoiceField(choices=["new", "like_new", "good", "fair"], required=False, allow_null=True)
     listing_type = serializers.ChoiceField(choices=["sale", "donation"], default="sale")
-    # Clients send a list of base64 strings; field validates & normalises each one
     image_data   = Base64ImageListField(default=list, required=False)
 
 
@@ -107,14 +108,9 @@ class UpdateListingSerializer(serializers.Serializer):
 # ── Saved listing serializer ──────────────────────────────────────────────────
 
 class SavedListingSerializer(serializers.ModelSerializer):
-    """
-    Represents a bookmarked listing.
-    'saverId' is the ID of the user who saved it (not the original seller).
-    The nested listing data is included for convenience.
-    """
-    saverId   = serializers.UUIDField(source="user_id", read_only=True)
-    savedAt   = serializers.DateTimeField(source="created_at", read_only=True)
-    listing   = MarketListingSerializer(read_only=True)
+    saverId = serializers.UUIDField(source="user_id", read_only=True)
+    savedAt = serializers.DateTimeField(source="created_at", read_only=True)
+    listing = MarketListingSerializer(read_only=True)
 
     class Meta:
         model  = MarketSavedListing

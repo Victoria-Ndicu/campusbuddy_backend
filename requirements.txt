@@ -50,6 +50,7 @@ pillow==12.1.1
 prompt_toolkit==3.0.52
 proto-plus==1.27.1
 protobuf==6.33.5
+filetype>=1.2.0
 psycopg2-binary==2.9.10
 pyasn1==0.6.2
 pyasn1_modules==0.4.2
