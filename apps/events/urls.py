@@ -25,6 +25,7 @@ urlpatterns = [
     # Optional: ?status=going|not_going|waitlist
     path("my-rsvps/", views.MyRSVPsView.as_view(), name="my-rsvps"),
 
+#
     # ── RSVP ──────────────────────────────────────────────────────────
     # POST { status: "going" | "not_going" }
     path("<uuid:pk>/rsvp/", views.EventRSVPView.as_view(), name="rsvp"),

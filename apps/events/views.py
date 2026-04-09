@@ -35,9 +35,9 @@ class EventsView(APIView):
             k: request.query_params.get(k)
             for k in ["category", "search", "from_date", "date", "month"]
         }
-        qs        = services.list_events(filters, request.user)
+        qs = services.list_events(filters, request.user)
         paginator = StandardPagination()
-        page      = paginator.paginate_queryset(qs, request)
+        page = paginator.paginate_queryset(qs, request)
 
         # Attach per-user flags (isSaved, isRsvped, userRsvp) to each event
         data = [services._serialize_event(event, request.user) for event in page]
@@ -154,7 +154,7 @@ class MyRSVPsView(APIView):
     """
     GET /api/v1/events/my-rsvps/
     Returns a paginated list of events the authenticated user has RSVPed to.
-    Each event includes a `userRsvp` field with the user's RSVP status.
+    Each event includes userRsvp, isRsvped, and isSaved fields.
 
     Optional query param:
       ?status=going|not_going|waitlist  — filter by RSVP status
@@ -165,11 +165,10 @@ class MyRSVPsView(APIView):
         qs = services.list_my_rsvps(request.user, rsvp_status_filter=status_filter)
         paginator = StandardPagination()
         page = paginator.paginate_queryset(qs, request)
-        data = []
-        for event in page:
-            event_data = EventSerializer(event).data
-            event_data["userRsvp"] = event.user_rsvp_status
-            data.append(event_data)
+        
+        # ✅ FIXED: Use _serialize_event to get consistent data structure
+        data = [services._serialize_event(event, request.user) for event in page]
+        
         return paginator.get_paginated_response(data)
 
 

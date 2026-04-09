@@ -19,16 +19,18 @@ def _serialize_event(event: Event, user) -> dict:
       isRsvped    : bool  (true when going or waitlist)
       isSaved     : bool
     """
+    # First get the base serializer data
     data = EventSerializer(event).data
-
+    
+    # Get RSVP status
     rsvp = EventRSVP.objects.filter(event=event, user=user).first()
-    data["userRsvp"] = rsvp.rsvp_status if rsvp else None
-    data["isRsvped"] = rsvp.rsvp_status in ("going", "waitlist") if rsvp else False
-
-    data["isSaved"] = EventSaved.objects.filter(
-        event=event, user=user
-    ).exists()
-
+    rsvp_status = rsvp.rsvp_status if rsvp else None
+    
+    # Override the per-user fields
+    data["userRsvp"] = rsvp_status
+    data["isRsvped"] = rsvp_status in ("going", "waitlist") if rsvp_status else False
+    data["isSaved"] = EventSaved.objects.filter(event=event, user=user).exists()
+    
     return data
 
 
@@ -61,7 +63,7 @@ def list_events(filters: dict, user):
     if date_str := filters.get("date"):
         try:
             from datetime import date as _date
-            d  = _date.fromisoformat(date_str)
+            d = _date.fromisoformat(date_str)
             qs = qs.filter(start_at__date=d)
         except ValueError:
             pass
@@ -80,49 +82,24 @@ def list_events(filters: dict, user):
     return qs.order_by("start_at")
 
 
-def list_events_serialized(filters: dict, user) -> list:
-    """
-    Convenience used by the paginated view — returns dicts with
-    per-user isSaved / isRsvped / userRsvp already attached.
-    Called from EventsView after paginating.
-    """
-    # NOTE: the view paginates the raw QS, then calls this on each page.
-    # We expose a per-object helper so the view can call it per item.
-    raise NotImplementedError("Use _serialize_event per object inside the view.")
-
-
 # ─────────────────────────────────────────────────────────────
-#  MY RSVPs
+#  MY RSVPs - FIXED
 # ─────────────────────────────────────────────────────────────
 def list_my_rsvps(user, rsvp_status_filter: str | None = None):
     """
     GET /api/v1/events/my-rsvps/
-    Returns a queryset of Events the user has RSVPed to, annotated
-    with the user's rsvp_status.  Optionally filtered by ?status=.
+    Returns a queryset of Events the user has RSVPed to.
     """
-    from django.db.models import CharField, Value
-    from django.db.models.functions import Coalesce
-
+    # Get all RSVPs for this user
     rsvp_qs = EventRSVP.objects.filter(user=user)
     if rsvp_status_filter:
         rsvp_qs = rsvp_qs.filter(rsvp_status=rsvp_status_filter)
-
+    
     event_ids = rsvp_qs.values_list("event_id", flat=True)
-
-    # Annotate each event with the user's rsvp_status via a subquery
-    from django.db.models import OuterRef, Subquery
-    user_rsvp_subquery = (
-        EventRSVP.objects
-        .filter(event=OuterRef("pk"), user=user)
-        .values("rsvp_status")[:1]
-    )
-
-    qs = (
-        Event.objects
-        .filter(pk__in=event_ids)
-        .annotate(user_rsvp_status=Subquery(user_rsvp_subquery, output_field=CharField()))
-        .order_by("start_at")
-    )
+    
+    # Return the events queryset (the view will handle serialization)
+    qs = Event.objects.filter(pk__in=event_ids).order_by("start_at")
+    
     return qs
 
 
@@ -132,7 +109,7 @@ def list_my_rsvps(user, rsvp_status_filter: str | None = None):
 def get_event(event_id: str, user) -> dict:
     """GET /api/v1/events/<id>/"""
     event = _get_or_404(event_id)
-    data  = _serialize_event(event, user)
+    data = _serialize_event(event, user)
     return {"success": True, "data": data}
 
 
@@ -187,8 +164,8 @@ def upload_banner_base64(data_uri: str, user) -> dict:
         )
     try:
         header, encoded = data_uri.split(",", 1)
-        mime        = header.split(":")[1].split(";")[0]
-        ext         = mime.split("/")[1]
+        mime = header.split(":")[1].split(";")[0]
+        ext = mime.split("/")[1]
         image_bytes = base64.b64decode(encoded)
     except Exception:
         raise AppError(
@@ -202,7 +179,7 @@ def upload_banner_base64(data_uri: str, user) -> dict:
             "FILE_TOO_LARGE",
             "Banner must be under 20 MB.",
         )
-    file_obj      = io.BytesIO(image_bytes)
+    file_obj = io.BytesIO(image_bytes)
     file_obj.name = f"banner_{uuid.uuid4().hex}.{ext}"
     url = upload_file(file_obj, folder="events/banners", user_id=str(user.id))
     return {"success": True, "data": {"bannerUrl": url}}
@@ -216,7 +193,6 @@ def rsvp(event_id: str, status: str, user) -> dict:
     POST /api/v1/events/<id>/rsvp/
     status: "going" | "not_going"
     """
-
     event = _get_or_404(event_id)
 
     # Lock row for safety (prevents race conditions)
@@ -257,7 +233,6 @@ def rsvp(event_id: str, status: str, user) -> dict:
             # Handle count changes
             if old_status == "going" and final_status != "going":
                 event.rsvp_count = max(0, event.rsvp_count - 1)
-
             elif old_status != "going" and final_status == "going":
                 event.rsvp_count += 1
 
@@ -285,6 +260,8 @@ def rsvp(event_id: str, status: str, user) -> dict:
             "success": True,
             "message": f"RSVP updated to: {final_status}"
         }
+
+
 # ─────────────────────────────────────────────────────────────
 #  REMINDER  (set / delete)
 # ─────────────────────────────────────────────────────────────
