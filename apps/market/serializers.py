@@ -42,7 +42,7 @@ class Base64ImageField(serializers.Field):
             raise serializers.ValidationError(
                 f"Image exceeds {self.MAX_SIZE_BYTES // (1024 * 1024)} MB limit.")
 
-        # Detect image type using filetype (works on Python 3.13+)
+        # Detect image type using filetype
         kind = filetype.guess(decoded)
         if kind is None or kind.mime not in self.ALLOWED_MIMES:
             detected = kind.mime if kind else "unknown"
@@ -55,7 +55,27 @@ class Base64ImageField(serializers.Field):
         return f"data:{normalised_mime};base64,{raw}"
 
     def to_representation(self, value):
-        return value   # already a data-URI string
+        """Convert stored image data to clean format for frontend"""
+        if not value:
+            return None
+        
+        # Handle if value is a list (database might store as JSON array)
+        if isinstance(value, list) and len(value) > 0:
+            value = value[0]
+        
+        # If it's a string, clean it for frontend
+        if isinstance(value, str):
+            # Remove data-URI prefix if present
+            if 'base64,' in value:
+                value = value.split('base64,')[1]
+            
+            # Remove quotes and brackets
+            value = value.strip('"\'[]')
+            
+            # Return just the clean base64 string (no prefix)
+            return value
+        
+        return value
 
 
 class Base64ImageListField(serializers.ListField):
@@ -66,6 +86,36 @@ class Base64ImageListField(serializers.ListField):
         if len(data) > 5:
             raise serializers.ValidationError("A listing may have at most 5 images.")
         return super().to_internal_value(data)
+    
+    def to_representation(self, value):
+        """
+        Convert stored image data list to clean base64 strings for frontend.
+        Returns a list of clean base64 strings without data URI prefixes.
+        """
+        if not value:
+            return []
+        
+        # Handle if value is a list
+        if isinstance(value, list):
+            cleaned_images = []
+            for img in value:
+                if isinstance(img, str):
+                    # Remove data-URI prefix if present
+                    if 'base64,' in img:
+                        img = img.split('base64,')[1]
+                    img = img.strip('"\'[]')
+                    cleaned_images.append(img)
+                else:
+                    cleaned_images.append(img)
+            return cleaned_images
+        
+        # If it's a single string, return as a list
+        if isinstance(value, str):
+            if 'base64,' in value:
+                value = value.split('base64,')[1]
+            return [value.strip('"\'[]')]
+        
+        return []
 
 
 # ── Listing serializers ───────────────────────────────────────────────────────
@@ -73,9 +123,11 @@ class Base64ImageListField(serializers.ListField):
 class MarketListingSerializer(serializers.ModelSerializer):
     sellerId    = serializers.UUIDField(source="seller_id", read_only=True)
     listingType = serializers.CharField(source="listing_type")
-    imageData   = serializers.JSONField(source="image_data")
     viewCount   = serializers.IntegerField(source="view_count", read_only=True)
     createdAt   = serializers.DateTimeField(source="created_at", read_only=True)
+    
+    # Use Base64ImageListField for imageData to ensure clean output
+    imageData = Base64ImageListField(source="image_data", read_only=True)
 
     class Meta:
         model  = MarketListing
