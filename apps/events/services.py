@@ -211,43 +211,80 @@ def upload_banner_base64(data_uri: str, user) -> dict:
 # ─────────────────────────────────────────────────────────────
 #  RSVP
 # ─────────────────────────────────────────────────────────────
-def rsvp(event_id: str, rsvp_status: str, user) -> dict:
+def rsvp(event_id: str, status: str, user) -> dict:
     """
     POST /api/v1/events/<id>/rsvp/
-    rsvp_status: "going" | "not_going"
+    status: "going" | "not_going"
     """
-    event    = _get_or_404(event_id)
-    existing = EventRSVP.objects.filter(event=event, user=user).first()
 
-    if existing:
-        old_status           = existing.rsvp_status
-        existing.rsvp_status = rsvp_status
-        existing.save(update_fields=["rsvp_status"])
+    event = _get_or_404(event_id)
 
-        if old_status == "going" and rsvp_status == "not_going":
-            Event.objects.filter(pk=event.pk).update(
-                rsvp_count=max(0, event.rsvp_count - 1)
-            )
-            _promote_waitlist(event)
-    else:
-        final_status = rsvp_status
+    # Lock row for safety (prevents race conditions)
+    from django.db import transaction
+    with transaction.atomic():
+        event = Event.objects.select_for_update().get(pk=event.id)
+
+        existing = EventRSVP.objects.filter(event=event, user=user).first()
+
+        # ─────────────────────────────────────────────
+        # Determine final status (capacity logic)
+        # ─────────────────────────────────────────────
+        final_status = status
+
         if (
-            rsvp_status == "going"
+            status == "going"
             and event.capacity
             and event.rsvp_count >= event.capacity
         ):
             final_status = "waitlist"
 
-        EventRSVP.objects.create(event=event, user=user, rsvp_status=final_status)
+        # ─────────────────────────────────────────────
+        # UPDATE existing RSVP
+        # ─────────────────────────────────────────────
+        if existing:
+            old_status = existing.rsvp_status
 
-        if final_status == "going":
-            Event.objects.filter(pk=event.pk).update(
-                rsvp_count=event.rsvp_count + 1
+            # No change → early return
+            if old_status == final_status:
+                return {
+                    "success": True,
+                    "message": f"RSVP unchanged: {final_status}"
+                }
+
+            existing.rsvp_status = final_status
+            existing.save(update_fields=["rsvp_status"])
+
+            # Handle count changes
+            if old_status == "going" and final_status != "going":
+                event.rsvp_count = max(0, event.rsvp_count - 1)
+
+            elif old_status != "going" and final_status == "going":
+                event.rsvp_count += 1
+
+            event.save(update_fields=["rsvp_count"])
+
+            # Promote waitlist if a spot opens
+            if old_status == "going" and final_status != "going":
+                _promote_waitlist(event)
+
+        # ─────────────────────────────────────────────
+        # CREATE new RSVP
+        # ─────────────────────────────────────────────
+        else:
+            EventRSVP.objects.create(
+                event=event,
+                user=user,
+                rsvp_status=final_status
             )
 
-    return {"success": True, "message": f"RSVP updated to: {rsvp_status}"}
+            if final_status == "going":
+                event.rsvp_count += 1
+                event.save(update_fields=["rsvp_count"])
 
-
+        return {
+            "success": True,
+            "message": f"RSVP updated to: {final_status}"
+        }
 # ─────────────────────────────────────────────────────────────
 #  REMINDER  (set / delete)
 # ─────────────────────────────────────────────────────────────
