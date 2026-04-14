@@ -20,12 +20,17 @@ class ProfileSerializer(serializers.Serializer):
     phone         = serializers.CharField(allow_null=True)
     degree        = serializers.CharField(allow_null=True)
     yearOfStudy   = serializers.IntegerField(source="year_of_study", allow_null=True)
-    university    = serializers.CharField(allow_null=True, read_only=True)  # ← locked, set from email domain at registration
+    university    = serializers.SerializerMethodField()  # ← locked, set from email domain at registration
     avatarUrl     = serializers.URLField(source="avatar_url", allow_null=True)
     isVerified    = serializers.BooleanField(source="is_verified")
     role          = serializers.CharField()
     createdAt     = serializers.DateTimeField(source="created_at")
     preferences   = serializers.SerializerMethodField()
+
+    def get_university(self, obj):
+        if obj.university_id is None:
+            return None
+        return obj.university.institution_name
 
     def get_preferences(self, obj):
         try:

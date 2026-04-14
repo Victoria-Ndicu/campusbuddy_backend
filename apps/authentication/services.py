@@ -26,8 +26,7 @@ def register_user(email: str, password: str, phone: str = "") -> dict:
     domain = email.split("@")[-1].lower()
     university = None
     try:
-        allowed = AllowedEmailDomain.objects.get(domain=domain, is_active=True)
-        university = allowed.institution_name
+        university = AllowedEmailDomain.objects.get(domain=domain, is_active=True)
     except AllowedEmailDomain.DoesNotExist:
         pass  # Non-university email — university stays None
 
@@ -35,7 +34,7 @@ def register_user(email: str, password: str, phone: str = "") -> dict:
         email=email,
         password=password,
         phone=phone or None,
-        university=university,   # ← set once at registration, never changed after
+        university=university,   # ← FK to AllowedEmailDomain, set once at registration
     )
 
     otp_record, plain = OtpCode.generate(user, "email_verify", settings.OTP_EXPIRY_MINUTES)
