@@ -1,12 +1,20 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
-from .models import OtpCode, User
+from .models import AllowedEmailDomain, OtpCode, User
+
+
+@admin.register(AllowedEmailDomain)
+class AllowedEmailDomainAdmin(admin.ModelAdmin):
+    list_display  = ["institution_name", "domain", "is_active", "created_at"]
+    list_filter   = ["is_active"]
+    search_fields = ["institution_name", "domain"]
+    ordering      = ["institution_name"]
 
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display  = ["email", "full_name", "role", "is_verified", "created_at"]
-    list_filter   = ["role", "is_verified", "is_staff"]
+    list_display  = ["email", "full_name", "university", "role", "is_verified", "created_at"]
+    list_filter   = ["role", "is_verified", "is_staff", "university"]
     search_fields = ["email", "full_name", "phone"]
     ordering      = ["-created_at"]
     readonly_fields = ["created_at", "updated_at", "last_login"]

@@ -64,7 +64,14 @@ class User(AbstractBaseUser, PermissionsMixin):
     full_name     = models.CharField(max_length=120, blank=True, null=True)
     degree        = models.CharField(max_length=120, blank=True, null=True)
     year_of_study = models.SmallIntegerField(blank=True, null=True)
-    university    = models.CharField(max_length=160, blank=True, null=True)
+    university    = models.ForeignKey(
+        "AllowedEmailDomain",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="users",
+        help_text="Set automatically from the user's email domain at registration.",
+    )
     avatar_url    = models.URLField(max_length=500, blank=True, null=True)
 
     # ── Soft delete ────────────────────────────────────────────────────────────
