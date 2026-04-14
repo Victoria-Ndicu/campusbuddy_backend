@@ -22,8 +22,4 @@ class Migration(migrations.Migration):
             model_name='studyresource',
             name='campus_id',
         ),
-        migrations.RemoveField(
-            model_name='tutor',
-            name='campus_id',
-        ),
     ]
