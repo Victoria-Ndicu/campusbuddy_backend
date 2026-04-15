@@ -123,8 +123,8 @@ def list_groups(filters: dict):
 def create_group(data: dict, user) -> dict:
     active = data.pop("active", True)
     group = StudyGroup.objects.create(creator=user, active=active, **data)
-    # Creator automatically becomes a member flagged as admin
-    StudyGroupMember.objects.create(group=group, user=user, is_admin=True)
+    # Creator automatically becomes a member flagged as creator
+    StudyGroupMember.objects.create(group=group, user=user, is_creator=True)
     # Sync real count
     StudyGroup.objects.filter(pk=group.pk).update(member_count=1)
     return {"success": True, "data": GroupSerializer(group).data}
@@ -142,8 +142,8 @@ def join_group(group_id: str, user) -> dict:
         raise AppError(status.HTTP_409_CONFLICT, "ALREADY_MEMBER",
                        "You are already in this group.")
 
-    # is_admin defaults to False for regular members
-    StudyGroupMember.objects.create(group=group, user=user, is_admin=False)
+    # is_creator defaults to False for regular members
+    StudyGroupMember.objects.create(group=group, user=user, is_creator=False)
     StudyGroup.objects.filter(pk=group_id).update(member_count=real_count + 1)
     return {"success": True, "message": "Joined group."}
 
