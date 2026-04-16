@@ -1,5 +1,5 @@
 """EventBoard views — campus_id removed, date/month filters + reminder DELETE."""
-from rest_framework.parsers import MultiPartParser
+from rest_framework.parsers import JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -75,12 +75,29 @@ class EventDetailView(APIView):
 class EventBannerUploadView(APIView):
     """
     POST /api/v1/events/uploads/banner/
-    Accepts multipart/form-data with field 'file'.
+
+    Accepts two content types:
+      • multipart/form-data  — field name 'file'  (existing behaviour)
+      • application/json     — body { "image": "data:<mime>;base64,<data>" }
+
     Returns { success: true, data: { bannerUrl: "https://..." } }
     """
-    parser_classes = [MultiPartParser]
+    parser_classes = [MultiPartParser, JSONParser]
 
     def post(self, request):
+        # ── JSON / base64 path ────────────────────────────────────────
+        if request.content_type and "application/json" in request.content_type:
+            data_uri = request.data.get("image")
+            if not data_uri:
+                return Response(
+                    {"error": {"code": "NO_IMAGE", "message": "No image provided."}},
+                    status=400,
+                )
+            return Response(
+                services.upload_banner_base64(data_uri, request.user), status=201
+            )
+
+        # ── Multipart / file path ─────────────────────────────────────
         file = request.FILES.get("file")
         if not file:
             return Response(
