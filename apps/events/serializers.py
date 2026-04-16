@@ -1,6 +1,67 @@
 """EventBoard serializers — campus_id removed, Flutter camelCase output."""
+import base64
+
+import filetype
 from rest_framework import serializers
+
 from .models import Event, EventReminder, EventRSVP
+
+
+# ── Reusable base64 image field ───────────────────────────────────────────────
+
+class Base64ImageField(serializers.Field):
+    """
+    Accepts a base64-encoded image string with a data-URI prefix, e.g.:
+        "data:image/png;base64,<data>"
+
+    Validates that the payload is a real image, enforces a 20 MB size cap
+    (matching the banner upload limit), and normalises the value to a
+    canonical data-URI so downstream code always sees a consistent format.
+    """
+    ALLOWED_MIMES  = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+    MAX_SIZE_BYTES = 20 * 1024 * 1024  # 20 MB — matches upload_banner limit
+
+    def to_internal_value(self, data):
+        if not isinstance(data, str):
+            raise serializers.ValidationError("Expected a base64 string.")
+
+        # Strip data-URI prefix if present
+        if data.startswith("data:"):
+            try:
+                header, raw = data.split(",", 1)
+                mime = header.split(":")[1].split(";")[0]  # e.g. "image/png"
+            except (ValueError, IndexError):
+                raise serializers.ValidationError("Malformed data-URI.")
+        else:
+            raw  = data
+            mime = None
+
+        # Decode
+        try:
+            decoded = base64.b64decode(raw, validate=True)
+        except Exception:
+            raise serializers.ValidationError("Invalid base64 encoding.")
+
+        if len(decoded) > self.MAX_SIZE_BYTES:
+            raise serializers.ValidationError(
+                f"Image exceeds {self.MAX_SIZE_BYTES // (1024 * 1024)} MB limit."
+            )
+
+        # Detect actual image type
+        kind = filetype.guess(decoded)
+        if kind is None or kind.mime not in self.ALLOWED_MIMES:
+            detected = kind.mime if kind else "unknown"
+            raise serializers.ValidationError(
+                f"Unsupported image type '{detected}'. "
+                f"Allowed: {self.ALLOWED_MIMES}."
+            )
+
+        # Normalise to a consistent data-URI
+        normalised_mime = mime or kind.mime
+        return f"data:{normalised_mime};base64,{raw}"
+
+    def to_representation(self, value):
+        return value
 
 
 class EventSerializer(serializers.ModelSerializer):
@@ -135,10 +196,8 @@ class CreateEventSerializer(serializers.Serializer):
     capacity  = serializers.IntegerField(
         required=False, allow_null=True, min_value=1
     )
-    # Accepts a short CDN URL or a long base64 data URI
-    banner_url = serializers.CharField(
-        required=False, allow_null=True, allow_blank=True, max_length=2_000_000
-    )
+    # Accepts a CDN URL string OR a base64 data URI validated by Base64ImageField
+    banner_url = Base64ImageField(required=False, allow_null=True)
     # Display-helper fields stored on the model
     emoji = serializers.CharField(required=False, allow_blank=True, max_length=10)
     entry = serializers.CharField(required=False, allow_blank=True, max_length=100)
@@ -167,9 +226,7 @@ class UpdateEventSerializer(serializers.Serializer):
     status = serializers.ChoiceField(
         choices=["draft", "published", "cancelled"], required=False
     )
-    banner_url = serializers.CharField(
-        required=False, allow_null=True, allow_blank=True, max_length=2_000_000
-    )
+    banner_url = Base64ImageField(required=False, allow_null=True)
     emoji = serializers.CharField(required=False, allow_blank=True, max_length=10)
     entry = serializers.CharField(required=False, allow_blank=True, max_length=100)
     mode  = serializers.CharField(required=False, allow_blank=True, max_length=50)
