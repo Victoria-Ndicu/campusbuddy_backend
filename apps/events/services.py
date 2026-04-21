@@ -118,7 +118,12 @@ def get_event(event_id: str, user) -> dict:
 # ─────────────────────────────────────────────────────────────
 def create_event(data: dict, user) -> dict:
     """POST /api/v1/events/"""
-    clean = {k: v for k, v in data.items() if v is not None and v != ""}
+    # Filter out display-only fields that are not model fields
+    model_fields = {
+        'title', 'description', 'category', 'location', 'latitude', 'longitude',
+        'start_at', 'end_at', 'capacity', 'banner_url'
+    }
+    clean = {k: v for k, v in data.items() if k in model_fields and v is not None and v != ""}
     event = Event.objects.create(organiser=user, status="published", **clean)
     return {"success": True, "data": EventSerializer(event).data}
 
