@@ -9,10 +9,12 @@ from .serializers import (
     CreateAnswerSerializer, CreateBookingSerializer,
     CreateGroupSerializer, CreateMessageSerializer,
     CreateQuestionSerializer, CreateSessionSerializer,
+    CreateTutorReviewSerializer,
     GroupMemberSerializer, GroupMessageSerializer,
     GroupSerializer, GroupSessionSerializer,
     QuestionSerializer, ResourceSerializer,
-    TutorSerializer, UpdateBookingSerializer, UpdateGroupSerializer,
+    TutorReviewSerializer, TutorSerializer,
+    UpdateBookingSerializer, UpdateGroupSerializer,
 )
 
 
@@ -33,6 +35,28 @@ class TutorsView(APIView):
 class TutorDetailView(APIView):
     def get(self, request, pk):
         return Response(services.get_tutor(str(pk)))
+
+
+class TutorReviewsView(APIView):
+    """
+    GET  /api/v1/study-buddy/tutors/<pk>/reviews/
+         Returns a paginated list of anonymous reviews for a tutor, newest first.
+    POST /api/v1/study-buddy/tutors/<pk>/reviews/
+         Submit a new anonymous review. Authenticated users only.
+         No reviewer identity is stored or returned.
+    """
+
+    def get(self, request, pk):
+        qs = services.get_tutor_reviews_queryset(str(pk))
+        paginator = StandardPagination()
+        page = paginator.paginate_queryset(qs, request)
+        return paginator.get_paginated_response(TutorReviewSerializer(page, many=True).data)
+
+    def post(self, request, pk):
+        s = CreateTutorReviewSerializer(data=request.data)
+        s.is_valid(raise_exception=True)
+        result = services.create_tutor_review(str(pk), s.validated_data["message"], request.user)
+        return Response(result, status=201)
 
 
 class BookingsView(APIView):

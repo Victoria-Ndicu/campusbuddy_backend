@@ -4,12 +4,12 @@ from rest_framework import status
 from core.exceptions import AppError
 from .models import (StudyAnswer, StudyBooking, StudyGroup, StudyGroupMember,
                      StudyGroupMessage, StudyGroupSession,
-                     StudyQuestion, StudyResource, Tutor)
+                     StudyQuestion, StudyResource, Tutor, TutorReview)
 from .serializers import (
     AnswerSerializer, BookingSerializer,
     GroupMemberSerializer, GroupMessageSerializer, GroupSerializer,
     GroupSessionSerializer, QuestionSerializer, ResourceSerializer,
-    TutorSerializer,
+    TutorReviewSerializer, TutorSerializer,
 )
 
 
@@ -54,6 +54,36 @@ def get_tutor(tutor_id: str) -> dict:
     if not tutor:
         raise AppError(status.HTTP_404_NOT_FOUND, "NOT_FOUND", "Tutor not found.")
     return {"success": True, "data": TutorSerializer(tutor).data}
+
+
+def get_tutor_reviews_queryset(tutor_id: str):
+    """Return an ordered queryset of reviews for a tutor (raises 404 if tutor missing)."""
+    tutor = Tutor.objects.filter(pk=tutor_id).first()
+    if not tutor:
+        raise AppError(status.HTTP_404_NOT_FOUND, "NOT_FOUND", "Tutor not found.")
+    return TutorReview.objects.filter(tutor=tutor).order_by("-created_at")
+
+
+def list_tutor_reviews(tutor_id: str) -> dict:
+    reviews = get_tutor_reviews_queryset(tutor_id)
+    return {"success": True, "data": TutorReviewSerializer(reviews, many=True).data}
+
+
+def create_tutor_review(tutor_id: str, message: str, user) -> dict:
+    from django.db import transaction
+
+    tutor = Tutor.objects.filter(pk=tutor_id).first()
+    if not tutor:
+        raise AppError(status.HTTP_404_NOT_FOUND, "NOT_FOUND", "Tutor not found.")
+
+    with transaction.atomic():
+        # Create the review — no user reference stored anywhere.
+        review = TutorReview.objects.create(tutor=tutor, message=message)
+        # Atomically sync review_count to the real row count.
+        new_count = TutorReview.objects.filter(tutor=tutor).count()
+        Tutor.objects.filter(pk=tutor_id).update(review_count=new_count)
+
+    return {"success": True, "data": TutorReviewSerializer(review).data}
 
 
 def create_booking(data: dict, user) -> dict:
