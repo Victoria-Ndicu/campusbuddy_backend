@@ -7,6 +7,7 @@ urlpatterns = [
     path("dashboard/",                                         views.DashboardView.as_view(),      name="dashboard"),
     # Tutors
     path("tutors/",                                            views.TutorsView.as_view(),         name="tutors"),
+    path("tutors/<uuid:pk>/reviews/",                          views.TutorReviewsView.as_view(),   name="tutor-reviews"),
     # Bookings
     path("bookings/",                                          views.BookingsView.as_view(),       name="bookings"),
     path("bookings/<uuid:pk>/",                                views.BookingDetailView.as_view(),  name="booking-detail"),

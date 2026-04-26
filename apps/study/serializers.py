@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import (StudyAnswer, StudyBooking, StudyGroup, StudyGroupMember,
                      StudyGroupMessage, StudyGroupSession, StudyQuestion,
-                     StudyResource, Tutor)
+                     StudyResource, Tutor, TutorReview)
 
 
 class TutorSerializer(serializers.ModelSerializer):
@@ -11,6 +11,24 @@ class TutorSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Tutor
         fields = ["id", "userId", "subjects", "hourlyRate", "bio", "rating", "review_count", "available"]
+
+
+class TutorReviewSerializer(serializers.ModelSerializer):
+    createdAt = serializers.DateTimeField(source="created_at", read_only=True)
+
+    class Meta:
+        model     = TutorReview
+        fields    = ["id", "message", "createdAt"]
+        read_only_fields = ["id", "createdAt"]
+
+
+class CreateTutorReviewSerializer(serializers.Serializer):
+    message = serializers.CharField(max_length=500, min_length=1)
+
+    def validate_message(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Review message cannot be empty or whitespace only.")
+        return value
 
 
 class BookingSerializer(serializers.ModelSerializer):

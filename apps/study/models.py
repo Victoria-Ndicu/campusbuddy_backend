@@ -19,6 +19,20 @@ class Tutor(models.Model):
         db_table = "tutors"
 
 
+class TutorReview(models.Model):
+    id         = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tutor      = models.ForeignKey(Tutor, on_delete=models.CASCADE, related_name="reviews")
+    message    = models.TextField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "tutor_reviews"
+        indexes  = [
+            models.Index(fields=["tutor", "created_at"], name="tutor_reviews_tutor_created_idx"),
+        ]
+        ordering = ["-created_at"]
+
+
 class StudyBooking(models.Model):
     STATUS_CHOICES = [("pending","Pending"),("confirmed","Confirmed"),("cancelled","Cancelled"),("completed","Completed")]
 
