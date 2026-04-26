@@ -28,7 +28,7 @@ class TutorReview(models.Model):
     class Meta:
         db_table = "tutor_reviews"
         indexes  = [
-            models.Index(fields=["tutor", "created_at"], name="tutor_reviews_tutor_created_idx"),
+            models.Index(fields=["tutor", "created_at"], name="tr_tutor_created_idx"),
         ]
         ordering = ["-created_at"]
 
