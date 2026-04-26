@@ -11,11 +11,16 @@ urlpatterns = [
     path("bookings/",                                          views.BookingsView.as_view(),       name="bookings"),
     path("bookings/<uuid:pk>/",                                views.BookingDetailView.as_view(),  name="booking-detail"),
     # Groups
-    path("groups/",                                            views.GroupsView.as_view(),         name="groups"),
-    path("groups/<uuid:pk>/",                                  views.GroupDetailView.as_view(),    name="group-detail"),
-    path("groups/<uuid:pk>/join/",                             views.GroupJoinView.as_view(),      name="group-join"),
-    path("groups/<uuid:pk>/leave/",                            views.GroupLeaveView.as_view(),     name="group-leave"),
-    path("group-members/",                                      views.GroupMembersView.as_view()),
+    path("groups/",                                            views.GroupsView.as_view(),              name="groups"),
+    path("groups/<uuid:pk>/",                                  views.GroupDetailView.as_view(),         name="group-detail"),
+    path("groups/<uuid:pk>/join/",                             views.GroupJoinView.as_view(),           name="group-join"),
+    path("groups/<uuid:pk>/leave/",                            views.GroupLeaveView.as_view(),          name="group-leave"),
+    path("group-members/",                                     views.GroupMembersView.as_view()),
+    # Sessions
+    path("groups/<uuid:pk>/sessions/",                         views.GroupSessionsView.as_view(),       name="group-sessions"),
+    path("groups/<uuid:pk>/sessions/<uuid:session_pk>/",       views.GroupSessionDetailView.as_view(),  name="group-session-detail"),
+    # Messages
+    path("groups/<uuid:pk>/messages/",                         views.GroupMessagesView.as_view(),       name="group-messages"),
  
     # Resources
     path("resources/",                                         views.ResourcesView.as_view(),      name="resources"),
