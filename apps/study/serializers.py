@@ -65,8 +65,7 @@ class GroupMemberSerializer(serializers.ModelSerializer):
     def get_degree(self, obj):
         u = obj.user
         return (getattr(u, "degree", None)
-                or getattr(u, "program", None)
-                or "")
+                or getattr(u, "program", None))
 
     def get_is_online(self, obj):
         return False
