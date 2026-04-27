@@ -10,6 +10,11 @@ urlpatterns = [
     # POST → create event  (body: CreateEventSerializer)
     path("", views.EventsView.as_view(), name="list"),
 
+    # ── My RSVPs ──────────────────────────────────────────────────────
+    # GET → paginated list of events the current user has RSVPed to
+    # Optional: ?status=going|not_going|waitlist
+    path("my-rsvps/", views.MyRSVPsView.as_view(), name="my-rsvps"),
+
     # ── Single event ──────────────────────────────────────────────────
     # GET    → event detail + userRsvp field
     # PATCH  → update event (organiser / admin only)
@@ -20,12 +25,6 @@ urlpatterns = [
     # POST multipart/form-data { file } → { data: { bannerUrl } }
     path("uploads/banner/", views.EventBannerUploadView.as_view(), name="upload-banner"),
 
-    # ── My RSVPs ──────────────────────────────────────────────────────
-    # GET → paginated list of events the current user has RSVPed to
-    # Optional: ?status=going|not_going|waitlist
-    path("my-rsvps/", views.MyRSVPsView.as_view(), name="my-rsvps"),
-
-#
     # ── RSVP ──────────────────────────────────────────────────────────
     # POST { status: "going" | "not_going" }
     path("<uuid:pk>/rsvp/", views.EventRSVPView.as_view(), name="rsvp"),
